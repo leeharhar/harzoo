@@ -14,7 +14,7 @@ def main() -> None:
     config_root = (Path.home() / ".harzoo" / "config").resolve()
 
     queue_in, queue_out = start(config_root)
-    
+
     run_tui(queue_in=queue_in, queue_out=queue_out)
 
 
