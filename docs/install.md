@@ -10,7 +10,8 @@
         python --version
         ```
 
-        若显示 `Python 3.10` 或更高，跳到步骤 3。若未安装或版本过低，请访问 [python.org/downloads/windows/](https://www.python.org/downloads/windows/) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
+        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+        - 若未安装或版本过低，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
 
     3. **安装 Harzoo**
 
@@ -52,7 +53,8 @@
         python3 --version
         ```
 
-        若显示 `Python 3.10` 或更高，跳到步骤 3。若未安装或版本过低，请访问 [python.org/downloads/macos/](https://www.python.org/downloads/macos/) 下载安装包并安装。
+        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+        - 若未安装或版本过低，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载安装包并安装。
 
     3. **安装 Harzoo**
 
@@ -94,7 +96,8 @@
         python3 --version
         ```
 
-        若显示 `Python 3.10` 或更高，跳到步骤 3。若未安装或版本过低，先安装 Python：
+        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+        - 若未安装或版本过低，先安装 Python：
 
         ```bash
         sudo apt update
