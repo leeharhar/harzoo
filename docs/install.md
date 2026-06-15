@@ -2,7 +2,7 @@
 
 === "Windows"
 
-    !!! tip "如何使用电脑上的PowerShell来操控电脑？"
+    !!! tip "小提示：如何使用电脑上的PowerShell来操控电脑？"
         大部分用户都习惯使用鼠标点击来操控电脑，但还有另一种方式来操控电脑，就是使用电脑上自带的**PowerShell**软件，通过在**PowerShell**中执行文字命令来操控电脑（即：在PowerShell中输入对应的文字命令，然后按回车执行）。Harzoo的安装与启动，均需要通过此方式进行。
 
     **Step 1. 打开 PowerShell**
@@ -18,7 +18,7 @@
     ```
 
     - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
-    - 若未安装或版本过低，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
+    - 若未安装或版本过低，请为你的电脑先安装Python，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载Python安装包，一步步点击安装（安装过程中需要勾选 `Add python.exe to PATH`选项）。
 
     **Step 3. 安装 Harzoo**
 
@@ -52,7 +52,7 @@
 
 === "macOS"
 
-    !!! tip "如何使用电脑上的终端软件来操控电脑？"
+    !!! tip "小提示：如何使用电脑上的终端软件来操控电脑？"
         大部分用户都习惯使用鼠标点击来操控电脑，但还有另一种方式来操控电脑，就是使用电脑上自带的**终端**软件，通过在**终端**中执行文字命令来操控电脑（即：在终端中输入对应的文字命令，然后按回车执行）。Harzoo的安装与启动，均需要通过此方式进行。
 
     **Step 1. 打开终端软件**
@@ -68,7 +68,7 @@
     ```
 
     - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
-    - 若未安装或版本过低，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载安装包并安装。
+    - 若未安装或版本过低，请为你的电脑先安装Python，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载Python安装包，进行安装。
 
     **Step 3. 安装 Harzoo**
 
