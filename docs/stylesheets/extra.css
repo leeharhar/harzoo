@@ -230,13 +230,9 @@
 }
 
 .landing-meta-license {
-  text-decoration: none;
-  color: inherit;
-  transition: color 0.15s ease;
-}
-
-.landing-meta-license:hover {
-  color: var(--md-default-fg-color);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--md-accent-fg-color) 55%, var(--md-default-fg-color--light));
 }
 
 .product-strip {
