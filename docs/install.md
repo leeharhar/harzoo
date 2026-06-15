@@ -3,7 +3,8 @@
 === "Windows"
 
     1. **打开 PowerShell**（按 `Win + R`，输入 `powershell`进行搜索）
-    2. **检查 Python**
+    2. **检查 Python是否已安装**
+
         运行以下命令查看版本
 
         ```powershell
@@ -46,7 +47,8 @@
 === "macOS"
 
     1. **打开终端**（`Command + 空格` → `Terminal`）
-    2. **检查 Python**：
+    2. **检查 Python是否已安装**：
+
         运行以下命令查看版本
 
         ```bash 
@@ -89,7 +91,8 @@
 === "Linux"
 
     1. **打开终端**（`Ctrl + Alt + T`）
-    2. **检查 Python**：
+    2. **检查 Python是否已安装**：
+    
         运行以下命令查看版本
 
         ```bash
