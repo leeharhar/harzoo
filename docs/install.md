@@ -7,7 +7,7 @@
 
     **Step 1. 打开 PowerShell**
 
-    `PowerShell`软件是电脑自带的，和其他常用的软件一样，直接搜索 `PowerShell` 即可找到，并启动。
+    `PowerShell`软件是电脑自带的，和其他常用的软件一样，直接搜索 `PowerShell`， 即可看到`Windows PowerShell`，并启动。
 
     **Step 2. 检查 Python是否已安装**
 
@@ -23,13 +23,14 @@
     **Step 3. 安装 Harzoo**
 
     ```powershell
-    python -m pip install harzoo
+    python -m pip install harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
+
 
     或
 
     ```powershell
-    pip install harzoo
+    pip install harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
     **Step 4. 启动**
@@ -41,13 +42,13 @@
     **Step 5. 更新 Harzoo**（可选）
 
     ```powershell
-    python -m pip install --upgrade harzoo
+    python -m pip install --upgrade harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
     或
 
     ```powershell
-    pip install --upgrade harzoo
+    pip install --upgrade harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
 === "macOS"
@@ -73,13 +74,13 @@
     **Step 3. 安装 Harzoo**
 
     ```bash
-    python3 -m pip install harzoo
+    python3 -m pip install harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
     或
 
     ```bash
-    pip3 install harzoo
+    pip3 install harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
     **Step 4. 启动**
@@ -91,13 +92,13 @@
     **Step 5. 更新 Harzoo**（可选）
 
     ```bash
-    python3 -m pip install --upgrade harzoo
+    python3 -m pip install --upgrade harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
     或
 
     ```bash
-    pip3 install --upgrade harzoo
+    pip3 install --upgrade harzoo -i https://pypi.tuna.tsinghua.edu.cn/simple
     ```
 
 === "Linux"
