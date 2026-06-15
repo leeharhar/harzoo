@@ -9,7 +9,7 @@
 
     2. **检查 Python是否已安装**
 
-        运行以下命令查看版本
+        运行以下命令查看Python的版本
 
         ```powershell
         python --version
@@ -56,7 +56,7 @@
     1. **打开终端**（`Command + 空格` → `Terminal`）
     2. **检查 Python是否已安装**：
 
-        运行以下命令查看版本
+        运行以下命令查看Python的版本
 
         ```bash 
         python3 --version
