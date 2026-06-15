@@ -2,150 +2,153 @@
 
 === "Windows"
 
-    1. **打开 PowerShell**
-    
-    按 `Win + R`，输入 `PowerShell`进行搜索
+    !!! tip "如何使用电脑上的PowerShell来操控电脑？"
+        大部分用户都习惯使用鼠标点击来操控电脑，但还有另一种方式来操控电脑，就是使用电脑上自带的**PowerShell**软件，通过在**PowerShell**中执行文字命令来操控电脑（即：在PowerShell中输入对应的文字命令，然后按回车执行）。Harzoo的安装与启动，均需要通过此方式进行。
 
+    **Step 1. 打开 PowerShell**
 
-    2. **检查 Python是否已安装**
+    `PowerShell`软件是电脑自带的，和其他常用的软件一样，直接搜索 `PowerShell` 即可找到，并启动。
 
-        运行以下命令查看Python的版本
+    **Step 2. 检查 Python是否已安装**
 
-        ```powershell
-        python --version
-        ```
+    运行以下命令查看Python的版本
 
-        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
-        - 若未安装或版本过低，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
+    ```powershell
+    python --version
+    ```
 
-        !!! tip "如何在PowerShell中运行命令？"
-            大部分用户都习惯使用鼠标操作电脑，但还有另一种方式来操作电脑，就是通过在PowerShell中执行命令来操作电脑，即：在PowerShell中输入对应的命令（比如`python --version`），然后按回车执行。
+    - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+    - 若未安装或版本过低，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
 
-    3. **安装 Harzoo**
+    **Step 3. 安装 Harzoo**
 
-        ```powershell
-        python -m pip install harzoo
-        ```
+    ```powershell
+    python -m pip install harzoo
+    ```
 
-        或
+    或
 
-        ```powershell
-        pip install harzoo
-        ```
+    ```powershell
+    pip install harzoo
+    ```
 
-    4. **启动**
+    **Step 4. 启动**
 
-        ```powershell
-        harzoo
-        ```
+    ```powershell
+    harzoo
+    ```
 
-    5. **更新 Harzoo**（可选）
+    **Step 5. 更新 Harzoo**（可选）
 
-        ```powershell
-        python -m pip install --upgrade harzoo
-        ```
+    ```powershell
+    python -m pip install --upgrade harzoo
+    ```
 
-        或
+    或
 
-        ```powershell
-        pip install --upgrade harzoo
-        ```
+    ```powershell
+    pip install --upgrade harzoo
+    ```
 
 === "macOS"
 
-    1. **打开终端**（`Command + 空格` → `Terminal`）
-    2. **检查 Python是否已安装**：
+    !!! tip "如何使用电脑上的终端软件来操控电脑？"
+        大部分用户都习惯使用鼠标点击来操控电脑，但还有另一种方式来操控电脑，就是使用电脑上自带的**终端**软件，通过在**终端**中执行文字命令来操控电脑（即：在终端中输入对应的文字命令，然后按回车执行）。Harzoo的安装与启动，均需要通过此方式进行。
 
-        运行以下命令查看Python的版本
+    **Step 1. 打开终端软件**
 
-        ```bash 
-        python3 --version
-        ```
+    `终端`软件是电脑自带的，和其他常用的软件一样，直接搜索 `终端` 即可找到，并启动。
 
-        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
-        - 若未安装或版本过低，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载安装包并安装。
+    **Step 2. 检查 Python是否已安装**
 
-        !!! tip "如何在终端中运行命令？"
-            大部分人都习惯使用鼠标操作电脑，但还有另一种方式来操作电脑，就是通过在终端中执行命令来操作电脑，即：在终端中输入对应的命令（比如`python --version`），然后按回车执行。
+    运行以下命令查看Python的版本
 
-    3. **安装 Harzoo**
+    ```bash
+    python3 --version
+    ```
 
-        ```bash
-        python3 -m pip install harzoo
-        ```
+    - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+    - 若未安装或版本过低，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载安装包并安装。
 
-        或
+    **Step 3. 安装 Harzoo**
 
-        ```bash
-        pip3 install harzoo
-        ```
+    ```bash
+    python3 -m pip install harzoo
+    ```
 
-    4. **启动**
+    或
 
-        ```bash
-        harzoo
-        ```
+    ```bash
+    pip3 install harzoo
+    ```
 
-    5. **更新 Harzoo**（可选）
+    **Step 4. 启动**
 
-        ```bash
-        python3 -m pip install --upgrade harzoo
-        ```
+    ```bash
+    harzoo
+    ```
 
-        或
+    **Step 5. 更新 Harzoo**（可选）
 
-        ```bash
-        pip3 install --upgrade harzoo
-        ```
+    ```bash
+    python3 -m pip install --upgrade harzoo
+    ```
+
+    或
+
+    ```bash
+    pip3 install --upgrade harzoo
+    ```
 
 === "Linux"
 
-    1. **打开终端**（`Ctrl + Alt + T`）
-    2. **检查 Python是否已安装**：
+    **Step 1. 打开终端**
 
-        运行以下命令查看版本
+    **Step 2. 检查 Python是否已安装**
 
-        ```bash
-        python3 --version
-        ```
+    运行以下命令查看版本
 
-        - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
-        - 若未安装或版本过低，先安装 Python：
+    ```bash
+    python3 --version
+    ```
 
-        ```bash
-        sudo apt update
-        sudo apt install -y python3 python3-pip
-        ```
+    - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
+    - 若未安装或版本过低，先安装 Python：
 
-    3. **安装 Harzoo**
+    ```bash
+    sudo apt update
+    sudo apt install -y python3 python3-pip
+    ```
 
-        ```bash
-        python3 -m pip install harzoo
-        ```
+    **Step 3. 安装 Harzoo**
 
-        或
+    ```bash
+    python3 -m pip install harzoo
+    ```
 
-        ```bash
-        pip3 install harzoo
-        ```
+    或
 
-    4. **启动**
+    ```bash
+    pip3 install harzoo
+    ```
 
-        ```bash
-        harzoo
-        ```
+    **Step 4. 启动**
 
-    5. **更新 Harzoo**（可选）
+    ```bash
+    harzoo
+    ```
 
-        ```bash
-        python3 -m pip install --upgrade harzoo
-        ```
+    **Step 5. 更新 Harzoo**（可选）
 
-        或
+    ```bash
+    python3 -m pip install --upgrade harzoo
+    ```
 
-        ```bash
-        pip3 install --upgrade harzoo
-        ```
+    或
+
+    ```bash
+    pip3 install --upgrade harzoo
+    ```
 
 ---
 
