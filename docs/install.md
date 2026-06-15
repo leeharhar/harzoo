@@ -2,7 +2,11 @@
 
 === "Windows"
 
-    1. **打开 PowerShell**（按 `Win + R`，输入 `powershell`进行搜索）
+    1. **打开 PowerShell**
+    
+    按 `Win + R`，输入 `PowerShell`进行搜索
+
+
     2. **检查 Python是否已安装**
 
         运行以下命令查看版本
@@ -13,6 +17,9 @@
 
         - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
         - 若未安装或版本过低，请点击 [python-3.13.14-amd64.exe](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-amd64.exe) 下载安装包，**勾选 `Add python.exe to PATH`** 后安装。
+
+        !!! tip "如何在PowerShell中运行命令？"
+            大部分用户都习惯使用鼠标操作电脑，但还有另一种方式来操作电脑，就是通过在PowerShell中执行命令来操作电脑，即：在PowerShell中输入对应的命令（比如`python --version`），然后按回车执行。
 
     3. **安装 Harzoo**
 
@@ -58,6 +65,9 @@
         - 若显示 `Python 3.10.0` 或更高，跳到步骤 3。
         - 若未安装或版本过低，请点击 [python-3.13.14-macos11.pkg](https://mirrors.huaweicloud.com/python/3.13.14/python-3.13.14-macos11.pkg) 下载安装包并安装。
 
+        !!! tip "如何在终端中运行命令？"
+            大部分人都习惯使用鼠标操作电脑，但还有另一种方式来操作电脑，就是通过在终端中执行命令来操作电脑，即：在终端中输入对应的命令（比如`python --version`），然后按回车执行。
+
     3. **安装 Harzoo**
 
         ```bash
@@ -92,7 +102,7 @@
 
     1. **打开终端**（`Ctrl + Alt + T`）
     2. **检查 Python是否已安装**：
-    
+
         运行以下命令查看版本
 
         ```bash

@@ -75,9 +75,8 @@
   --md-header-height: 0rem;
 }
 
-/* Hide markdown H1 in content (pages use ## as top heading; index uses custom landing title) */
-.md-content .md-typeset > h1:first-child,
-.md-content .md-typeset > .doc-title {
+/* Hide markdown H1 in content (pages use ## or .doc-title as top heading) */
+.md-content .md-typeset > h1:first-child {
   display: none;
 }
 
@@ -124,7 +123,21 @@
 .doc-title {
   justify-content: space-between;
   width: 100%;
-  margin: 0 0 1em;
+  margin: 0 0 1.25em;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+}
+
+.doc-title h1 {
+  font-size: clamp(1.65rem, 4vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.doc-title .landing-meta {
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .landing-title h1,
