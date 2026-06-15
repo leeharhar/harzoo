@@ -13,7 +13,7 @@ hide:
   </div>
   <div class="landing-taglines">
     <p class="landing-tagline">
-      The AI that births your AI.
+      Create your domain AI.
     </p>
   </div>
 </section>
