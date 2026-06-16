@@ -44,10 +44,7 @@ hide:
   </div>
   <div class="landing-taglines">
     <p class="landing-tagline">
-      Create your domain AI.
-    </p>
-    <p class="landing-subtagline">
-      Think apps in the internet era. Now think domain AI.
+      Create your domain AI. Your app for the AI era.
     </p>
   </div>
 </section>
