@@ -11,7 +11,7 @@ from harzoo.tui import run_tui
 def main() -> None:
     """程序入口"""
 
-    config_root = (Path.home() / ".harzoo" / "config").resolve()
+    config_root = (Path(__file__).resolve().parents[1] / "config").resolve()
 
     queue_in, queue_out = start(config_root)
 

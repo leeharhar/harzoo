@@ -1,10 +1,12 @@
 # Harzoo
 
-Harzoo is a simple, flexible, powerful Python AI agent framework. 
+Harzoo is a simple, flexible, powerful Python AI agent framework.
 
-Just 1300 lines of code. 
+Just 1300 lines of code.
 
-It is a universal world‑task architecture: `s₀ → [LLM + tools] → s₁ → [LLM + tools] → s₂ → …`
+It is a universal world-task architecture: `s₀ → [LLM + tools] → s₁ → [LLM + tools] → s₂ → …`
+
+> **Framework kernel repository.** User guides and resource downloads: [www.harzoo.com](https://www.harzoo.com)
 
 ## Documentation
 
@@ -12,47 +14,52 @@ It is a universal world‑task architecture: `s₀ → [LLM + tools] → s₁ �
 www.harzoo.com
 ```
 
-## Repository Layout
-
-
-| Path      | Purpose                              |
-| --------- | ------------------------------------ |
-| `src/`    | code                                 |
-| `docs/`   | Documentation, official config files |
-| `assets/` | Official config files |
-| `other`   | Project management                   |
-
-
 ## Quick Start
 
-1. **Install**
-   ```bash
-   pip install harzoo
-   ```
-2. **Run**
-
-   Opens the terminal UI. On first run, Harzoo creates a config folder:
+1. **Install from source**
 
    ```bash
-   harzoo
+   git clone https://github.com/leeharhar/harzoo.git
+   cd harzoo
+   pip install -e .
    ```
-3. **Configure**
 
-   Edit files under:
+2. **Configure**
+
+   Edit files under the project `config/` directory:
 
    ```text
-   ~/.harzoo/config/
+   config/
+   ├── config.json
+   ├── profiles/
+   └── tools/
    ```
 
-   - Copy files from `assets/config/` into the folder above, and update API settings (`api_key`, `base_url`, `model_name`) in your profile.
-   - Update `config.json` — set `startup_profile` to your profile file.
+   - Update API settings (`api_key`, `base_url`, `model_name`) in your profile under `profiles/`.
+   - Set `startup_profile` in `config.json` to your profile file.
 
-4. **Restart**
+3. **Run**
 
-   Quit Harzoo and run again to load your changes:
+   Opens the terminal UI:
 
    ```bash
    harzoo
+   ```
+
+4. **Restart after changes**
+
+   Quit Harzoo and run again to load config changes:
+
+   ```bash
+   harzoo
+   ```
+
+   To update later, pull the latest source and reinstall:
+
+   ```bash
+   cd harzoo
+   git pull
+   pip install -e .
    ```
 
 ## Python Examples
@@ -60,10 +67,13 @@ www.harzoo.com
 ### High-level
 
 ```python
+from pathlib import Path
+
+import harzoo
 from harzoo import start
 from harzoo.agent.kernel.message import user_message
 
-config_dir = "~/.harzoo/config"
+config_dir = Path(harzoo.__file__).resolve().parents[1] / "config"
 queue_in, queue_out = start(config_dir)
 
 user_message = user_message([{"type": "text", "text": "Hello"}])
@@ -75,12 +85,16 @@ print(queue_out.get())
 ### Low-level
 
 ```python
+from pathlib import Path
+
+import harzoo
 from harzoo import Agent
 from harzoo.agent.components.paths import prepare_config_paths
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context
 
-paths = prepare_config_paths("~/.harzoo/config")
+config_dir = Path(harzoo.__file__).resolve().parents[1] / "config"
+paths = prepare_config_paths(config_dir)
 agent = Agent.from_profile(paths.startup_profile_path, paths)
 
 state = []
