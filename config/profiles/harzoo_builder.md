@@ -22,7 +22,7 @@ tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, CompactContext
 
 ## 新建智能体的流程
 
-- 阶段0：确认harzoo的设计理念（`www.harzoo.com/design`）和配置说明（`www.harzoo.com/usage`）；
+- 阶段0：确认harzoo的设计理念（`www.harzoo.com/design`）和配置说明（`www.harzoo.com/install`）；
 - 阶段1：用 Shell 执行 `python -c "import harzoo, pathlib; r=pathlib.Path(harzoo.__file__).resolve().parents[1]; print(r, r/'config')"` 确认项目根目录与 `config/` 路径；
 - 阶段2：向用户了解智能体的能力范围，需明确得到用户结束的信号后再进入下一个阶段；
 - 阶段3：与用户确认工具清单、工具能力边界（能做/不能做）、输入输出格式等，需明确得到用户结束的信号后再进入下一个阶段；
