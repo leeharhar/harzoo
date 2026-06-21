@@ -20,7 +20,13 @@ www.harzoo.com
 
    ```bash
    git clone https://github.com/leeharhar/harzoo.git
+   ```
+
+   ```bash
    cd harzoo
+   ```
+
+   ```bash
    pip install -e .
    ```
 
@@ -44,22 +50,6 @@ www.harzoo.com
 
    ```bash
    harzoo
-   ```
-
-4. **Restart after changes**
-
-   Quit Harzoo and run again to load config changes:
-
-   ```bash
-   harzoo
-   ```
-
-   To update later, pull the latest source and reinstall:
-
-   ```bash
-   cd harzoo
-   git pull
-   pip install -e .
    ```
 
 ## Python Examples
