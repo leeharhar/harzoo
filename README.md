@@ -6,8 +6,6 @@ Just 1300 lines of code.
 
 It is a universal world-task architecture: `s₀ → [LLM + tools] → s₁ → [LLM + tools] → s₂ → …`
 
-> **Framework kernel repository.** User guides and resource downloads: [www.harzoo.com](https://www.harzoo.com)
-
 ## Documentation
 
 ```text
