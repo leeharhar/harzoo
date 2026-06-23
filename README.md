@@ -1,10 +1,8 @@
 # Harzoo
 
-Harzoo is a simple, flexible, powerful Python AI agent framework.
+Harzoo is a simple, flexible, powerful Python AI framework.
 
 Just 1300 lines of code.
-
-It is a universal world-task architecture: `s₀ → [LLM + tools] → s₁ → [LLM + tools] → s₂ → …`
 
 ## Documentation
 
