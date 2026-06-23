@@ -47,6 +47,23 @@ class CopyableMessage(Container):
 class ChatInputTextArea(TextArea):
     """聊天输入框：Enter 发送，Shift+Enter 换行。"""
 
+    DEFAULT_CSS = """
+    ChatInputTextArea {
+        width: 1fr;
+        height: auto;
+        min-height: 1;
+        max-height: 8;
+        padding: 0 1;
+        background: $surface;
+        border: solid $border-blurred;
+        scrollbar-size-vertical: 0;
+        scrollbar-size-horizontal: 0;
+    }
+    ChatInputTextArea:focus {
+        border: solid $border;
+    }
+    """
+
     class Submitted(Message):
         """用户在此组件提交输入时发出。"""
 
@@ -76,7 +93,11 @@ class BannerMessage(Container):
         padding: 1 2;
         margin: 0 0 1 0;
         background: $primary 15%;
-        text-align: center;
+        align-horizontal: center;
+    }
+    BannerMessage Static {
+        width: auto;
+        height: auto;
     }
     """
 

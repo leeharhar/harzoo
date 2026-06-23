@@ -57,12 +57,6 @@ class AgentApp(App[None]):
         padding-right: 6;
         color: $text-muted;
     }
-    #input TextArea {
-        width: 1fr;
-        height: auto;
-        min-height: 1;
-        max-height: 8;
-    }
     """
 
     BINDINGS = [
@@ -83,7 +77,8 @@ class AgentApp(App[None]):
                 soft_wrap=True,
                 show_line_numbers=False,
                 tab_behavior="focus",
-                placeholder="Ask the agent… (Enter send, Shift+Enter newline)",
+                highlight_cursor_line=False,
+                placeholder="Ask the AI…",
                 id="chat-input",
             )
             yield Static("", id="status-footer", markup=False)
