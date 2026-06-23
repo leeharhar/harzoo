@@ -15,7 +15,7 @@ from .widgets import BannerMessage, ChatInputTextArea
 
 BANNER = r"""
 ╔══════════════════════════════════════════════════════════════╗
-║   🎮 HARZOO AGENT v0.1.0      │      www.harzoo.com           ║
+║                        🎮 Harzoo                              ║
 ║──────────────────────────────────────────────────────────────║
 ║        🤖 Beep Boop... Your Wish Is My Command! (◕‿◕)         ║
 ╚══════════════════════════════════════════════════════════════╝
