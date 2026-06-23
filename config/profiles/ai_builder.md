@@ -1,8 +1,8 @@
 ---
 
 profile_version: "2026-05-27"
-name: harzoo_builder
-description: 智能体构建师（以配置生成为主），负责用 Harzoo 高效生成并落盘用户专属智能体配置。
+name: ai_builder
+description: AI构建师（以配置生成为主），负责用 Harzoo 高效生成并落盘用户专属智能体配置。
 api_key: sk-fde32fbf71f4b40b9d3ed3955fb6722
 base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 model_name: qwen3.6-plus
