@@ -144,7 +144,7 @@ CONTEXT_USAGE_SLOT_END = "<</HARZOO_TOKEN>>"
 _CONTEXT_USAGE_SLOT_BLOCK = re.compile(re.escape(CONTEXT_USAGE_SLOT_START) + r"[\s\S]*?" + re.escape(CONTEXT_USAGE_SLOT_END), re.MULTILINE)
 
 def _context_usage_bullet(pct: float) -> str:
-    return f"- Context usage (approx.): {pct:.1f}% of max. Above ~75%, use CompactContext to compress."
+    return f"- Context usage (approx.): {pct:.1f}% of max. See CompactContext tool when you need headroom."
 
 
 def build_self_state_section() -> str:
