@@ -25,6 +25,32 @@ from .widgets import AgentActivityLine, AssistantMessage, ErrorMessage, ToolCall
 EventHandler = Callable[[dict[str, Any], dict[str, Any], ScrollableContainer], None]
 
 
+def _turn_tokens(usage: dict[str, Any]) -> int:
+    try:
+        total = int(usage.get("total_tokens") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    if total > 0:
+        return total
+    try:
+        prompt = int(usage.get("prompt_tokens") or 0)
+        completion = int(usage.get("completion_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, prompt + completion)
+
+
+def _compact_int(value: int) -> str:
+    if value >= 10_000:
+        return f"{value // 1000}k"
+    if value >= 1_000:
+        compact = f"{value / 1000:.1f}k"
+        if compact.endswith(".0k"):
+            return f"{value // 1000}k"
+        return compact
+    return str(value)
+
+
 class AgentController:
     """控制 TUI 交互与出站事件渲染。"""
 
@@ -40,6 +66,8 @@ class AgentController:
         self._status_profile_name = "—"
         self._status_max_context_tokens: int | None = None
         self._status_usage_ratio_text = ""
+        self._last_turn_tokens = 0
+        self._session_total_tokens = 0
         self._is_waiting_assistant_reply = False
         self._event_handler_by_name: dict[QueueoutEventName, EventHandler] = {
             QueueoutEventName.LLM_READY: self._handle_llm_ready_event,
@@ -57,6 +85,10 @@ class AgentController:
         footer_parts = [self._status_model_name, self._status_profile_name]
         if self._status_usage_ratio_text:
             footer_parts.append(self._status_usage_ratio_text)
+        if self._last_turn_tokens > 0:
+            footer_parts.append(_compact_int(self._last_turn_tokens))
+        if self._session_total_tokens > 0:
+            footer_parts.append(f"Σ{_compact_int(self._session_total_tokens)}")
         footer_text = " · ".join(footer_parts)
         footer_widget = self.app.query_one("#status-footer", Static)
         footer_widget.update(footer_text)
@@ -202,7 +234,14 @@ class AgentController:
         assistant_text = str(payload.get("content", "")).strip()
         if assistant_text:
             chat_container.mount(AssistantMessage(assistant_text))
+        elif tool_names := payload.get("tool_names"):
+            chat_container.mount(Static("→ " + " · ".join(str(name) for name in tool_names), markup=False))
         usage_payload = payload.get("usage")
+        if isinstance(usage_payload, dict):
+            turn_tokens = _turn_tokens(usage_payload)
+            if turn_tokens > 0:
+                self._last_turn_tokens = turn_tokens
+                self._session_total_tokens += turn_tokens
         if isinstance(usage_payload, dict) and self._status_max_context_tokens is not None:
             try:
                 prompt_tokens = int(usage_payload.get("prompt_tokens"))
