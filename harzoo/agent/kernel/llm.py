@@ -20,7 +20,7 @@ class LLMConfig:
 
 
 class LLM:
-    """LLM客户端, 请求LLM API"""
+    """LLM客户端, 请求LLM API(当state中包含图片数据时, 仅最后一张图片数据会生效)"""
 
     def __init__(self, llm_config: LLMConfig):
         self.llm_config = llm_config
@@ -28,7 +28,7 @@ class LLM:
 
     def __call__(self, state: list[dict]) -> tuple[str | list[Any] | None, list[dict[str, Any]] | None, dict[str, int] | None]:
 
-        # ===== 预处理会话状态（图片仅保留最后一条用户消息） =====
+        # ===== 预处理state（若最后一条消息中包含图片路径，则将图片路径转成图片像素数据。） =====
         normalized_state = preprocess_chat_state_for_api(state)
 
         # ===== 追加系统提示词，组装 API messages =====

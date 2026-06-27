@@ -1,10 +1,10 @@
 # Harzoo
 
-Build your own AI. 
+Harzoo is a flexible and transparent Python AI framework. 
 
-Harzoo is a flexible Python AI framework.
+You can Build your own AI. 
 
-Just 1300 lines of code, you can read, audit, and own it.
+Just 1300 lines of code, you can read and own it.
 
 ## Documentation
 

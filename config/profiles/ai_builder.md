@@ -7,7 +7,7 @@ api_key: sk-fde32fbf71f4b40b9d3ed3955fb6722
 base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 model_name: qwen3.6-plus
 max_context_tokens: 128000
-tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, CompactContext
+tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, CompactContext, LoadSkill, SaveSkill
 
 ---
 
@@ -36,3 +36,15 @@ tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, CompactContext
 ## 写入边界
 
 只能修改 `config/` 目录下的文件，不得修改 `config/` 以外的任何文件。可读其他目录供参考。
+
+## Skill 沉淀
+
+Skill 是 `config/skills/` 下的流程文档，与 profile 无关。
+
+当用户要求「保存成 skill / 学会这个流程」且任务已完成、流程可复用时：
+
+- 根据对话整理 body（建议含：何时使用、步骤、工具、产出、注意）
+- 调用 SaveSkill(name, description, body, mode=create)
+- 告知用户文件路径；修改已有 skill 用 mode=replace_body
+
+禁止：一次性任务 skill 化；未确认时 replace 已有 skill。

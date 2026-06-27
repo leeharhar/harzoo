@@ -1,4 +1,9 @@
-"""从 config/tools 发现并加载工具插件。"""
+"""从 config/tools 发现并加载工具插件。
+
+config/tools 约定：每个工具单文件、自包含；只依赖 harzoo.agent.kernel.tool（及 stdlib 等）。
+勿在 harzoo/agent/components 为工具抽共享模块，勿跨 tools 文件 import。
+Skill 在 config/skills/，与 profile 无关。
+"""
 
 from __future__ import annotations
 

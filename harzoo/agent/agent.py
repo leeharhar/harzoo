@@ -53,7 +53,6 @@ class Agent:
     def _make_llm_config(profile: AgentProfile, config_paths: ConfigPaths, tools: ToolHub) -> LLMConfig:
         system_prompt = assemble_system_prompt(
             base_prompt=profile.base_prompt,
-            skill_names=profile.skill_names,
             skill_manifests=list_skill_manifests(config_paths),
             subagent_names=profile.subagent_names,
             subagent_paths=list_subagent_paths(config_paths),
