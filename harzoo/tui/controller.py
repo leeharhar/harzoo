@@ -20,7 +20,7 @@ from .processing import (
     replace_image_paths_with_placeholders,
     sync_attachments_with_placeholders,
 )
-from .widgets import AgentActivityLine, AssistantMessage, ErrorMessage, ToolCallRow, UserMessage
+from .widgets import AgentActivityLine, AssistantMessage, ErrorMessage, ToolCallRow, TurnBlock, UserMessage
 
 EventHandler = Callable[[dict[str, Any], dict[str, Any], ScrollableContainer], None]
 
@@ -58,6 +58,7 @@ class AgentController:
         self.app = app
         self.queue_in = queue_in
         self._tool_row_by_call_id: dict[str, ToolCallRow] = {}
+        self._current_turn_block: TurnBlock | None = None
         self._activity_line_widget: AgentActivityLine | None = None
         self._previous_raw_input = ""
         self._pending_image_attachments: list[Path] = []
@@ -157,6 +158,7 @@ class AgentController:
         input_widget.clear()
         self._reset_input_tracking()
         self._mount_user_message(submitted_text)
+        self._current_turn_block = None
         self._is_waiting_assistant_reply = True
         self._scroll_chat_to_bottom()
         self.queue_in.put(user_message(parts))
@@ -183,6 +185,19 @@ class AgentController:
         if self._activity_line_widget:
             self._activity_line_widget.remove()
             self._activity_line_widget = None
+
+    def _start_llm_turn(self, chat_container: ScrollableContainer) -> TurnBlock:
+        """开启新一轮 LLM 视觉块（圆点 + 左侧竖线）。"""
+        turn_block = TurnBlock()
+        chat_container.mount(turn_block)
+        self._current_turn_block = turn_block
+        return turn_block
+
+    def _mount_in_current_turn(self, chat_container: ScrollableContainer, widget) -> None:
+        """将组件挂载到当前 LLM 轮次；若无轮次则新建。"""
+        if self._current_turn_block is None:
+            self._start_llm_turn(chat_container)
+        self._current_turn_block.mount_content(widget)
 
     def _handle_thinking_started_event(
         self,
@@ -232,10 +247,9 @@ class AgentController:
     ) -> None:
         self._remove_activity_line()
         assistant_text = str(payload.get("content", "")).strip()
+        turn_block = self._start_llm_turn(chat_container)
         if assistant_text:
-            chat_container.mount(AssistantMessage(assistant_text))
-        elif tool_names := payload.get("tool_names"):
-            chat_container.mount(Static("→ " + " · ".join(str(name) for name in tool_names), markup=False))
+            turn_block.mount_content(AssistantMessage(assistant_text))
         usage_payload = payload.get("usage")
         if isinstance(usage_payload, dict):
             turn_tokens = _turn_tokens(usage_payload)
@@ -266,10 +280,7 @@ class AgentController:
     ) -> None:
         tool_call_id = str(payload.get("tool_call_id", ""))
         tool_row_widget = ToolCallRow(tool_call_id, str(payload.get("tool_name", "")), str(payload.get("tool_args", "")))
-        if self._activity_line_widget:
-            chat_container.mount(tool_row_widget, before=self._activity_line_widget)
-        else:
-            chat_container.mount(tool_row_widget)
+        self._mount_in_current_turn(chat_container, tool_row_widget)
         if tool_call_id:
             self._tool_row_by_call_id[tool_call_id] = tool_row_widget
 
@@ -308,8 +319,9 @@ class AgentController:
         except (TypeError, ValueError):
             return
         ratio_percent = round((prompt_tokens / max_context_tokens) * 100) if max_context_tokens > 0 else 0
-        chat_container.mount(
+        self._mount_in_current_turn(
+            chat_container,
             AssistantMessage(
                 f"[system] Context compacted at {ratio_percent}% (messages: {before_messages} -> {after_messages})."
-            )
+            ),
         )

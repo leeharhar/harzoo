@@ -52,10 +52,8 @@ class QueueoutEmitter:
     def emit_tool_finished(self, call_id: str, tool_result: ToolResult) -> None:
         self._emit(QueueoutEventName.TOOL_END, {"tool_call_id": call_id, "tool_result": tool_result.to_json(), "ok": tool_result.ok})
 
-    def emit_assistant_message(self, content: object, *, usage: object = None, tool_names: list[str] | None = None) -> None:
-        payload = {"content": str(content or "")}
-        if tool_names:
-            payload["tool_names"] = tool_names
+    def emit_assistant_message(self, content: object, *, usage: object = None) -> None:
+        payload = {"content": str(content)}
         if isinstance(usage, dict):
             payload["usage"] = {"prompt_tokens": int(usage.get("prompt_tokens", 0)), "completion_tokens": int(usage.get("completion_tokens", 0)), "total_tokens": int(usage.get("total_tokens", 0)), "latency_ms": int(usage.get("latency_ms", 0))}
         self._emit(QueueoutEventName.ASSISTANT_MESSAGE, payload)

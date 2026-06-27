@@ -57,8 +57,7 @@ def engine(queue_in: Queue[dict[str, Any]], queue_out: Queue[Any], config_paths:
                 emitter.emit_thinking_finished()
 
             queue_in.put(assistant_message(content=content, tool_calls=tool_calls))
-            tool_names = [str(tc["function"]["name"]) for tc in tool_calls] if isinstance(tool_calls, list) and tool_calls else None
-            emitter.emit_assistant_message(content, usage=usage, tool_names=tool_names)
+            emitter.emit_assistant_message(content, usage=usage)
 
             # ====== 执行工具 ======
             if isinstance(tool_calls, list) and tool_calls:
