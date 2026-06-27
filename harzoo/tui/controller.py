@@ -9,6 +9,7 @@ from typing import Any
 
 from textual.app import App
 from textual.containers import ScrollableContainer
+from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
 from harzoo.agent.components import QueueoutEventName
@@ -20,7 +21,7 @@ from .processing import (
     replace_image_paths_with_placeholders,
     sync_attachments_with_placeholders,
 )
-from .widgets import AgentActivityLine, AssistantMessage, ErrorMessage, ToolCallRow, TurnBlock, UserMessage
+from .widgets import AgentActivityLine, AssistantMessage, AssistantTurnBlock, ErrorMessage, ToolCallRow, UserMessage
 
 EventHandler = Callable[[dict[str, Any], dict[str, Any], ScrollableContainer], None]
 
@@ -58,7 +59,6 @@ class AgentController:
         self.app = app
         self.queue_in = queue_in
         self._tool_row_by_call_id: dict[str, ToolCallRow] = {}
-        self._current_turn_block: TurnBlock | None = None
         self._activity_line_widget: AgentActivityLine | None = None
         self._previous_raw_input = ""
         self._pending_image_attachments: list[Path] = []
@@ -70,6 +70,7 @@ class AgentController:
         self._last_turn_tokens = 0
         self._session_total_tokens = 0
         self._is_waiting_assistant_reply = False
+        self._current_turn_block: AssistantTurnBlock | None = None
         self._event_handler_by_name: dict[QueueoutEventName, EventHandler] = {
             QueueoutEventName.LLM_READY: self._handle_llm_ready_event,
             QueueoutEventName.THINKING_START: self._handle_thinking_started_event,
@@ -186,18 +187,25 @@ class AgentController:
             self._activity_line_widget.remove()
             self._activity_line_widget = None
 
-    def _start_llm_turn(self, chat_container: ScrollableContainer) -> TurnBlock:
-        """开启新一轮 LLM 视觉块（圆点 + 左侧竖线）。"""
-        turn_block = TurnBlock()
-        chat_container.mount(turn_block)
+    def _start_new_turn_block(self, chat_container: ScrollableContainer) -> AssistantTurnBlock:
+        """为新一轮 LLM 回复创建灰底块。"""
+        turn_block = AssistantTurnBlock()
         self._current_turn_block = turn_block
+        if self._activity_line_widget:
+            chat_container.mount(turn_block, before=self._activity_line_widget)
+        else:
+            chat_container.mount(turn_block)
         return turn_block
 
-    def _mount_in_current_turn(self, chat_container: ScrollableContainer, widget) -> None:
-        """将组件挂载到当前 LLM 轮次；若无轮次则新建。"""
+    def _ensure_turn_block(self, chat_container: ScrollableContainer) -> AssistantTurnBlock:
+        """返回当前轮次块；若不存在则新建。"""
         if self._current_turn_block is None:
-            self._start_llm_turn(chat_container)
-        self._current_turn_block.mount_content(widget)
+            return self._start_new_turn_block(chat_container)
+        return self._current_turn_block
+
+    def _mount_in_turn(self, chat_container: ScrollableContainer, widget: Widget) -> None:
+        """将组件挂载到当前 assistant 轮次块内。"""
+        self._ensure_turn_block(chat_container).mount(widget)
 
     def _handle_thinking_started_event(
         self,
@@ -246,10 +254,10 @@ class AgentController:
         chat_container: ScrollableContainer,
     ) -> None:
         self._remove_activity_line()
+        turn_block = self._start_new_turn_block(chat_container)
         assistant_text = str(payload.get("content", "")).strip()
-        turn_block = self._start_llm_turn(chat_container)
         if assistant_text:
-            turn_block.mount_content(AssistantMessage(assistant_text))
+            turn_block.mount(AssistantMessage(assistant_text))
         usage_payload = payload.get("usage")
         if isinstance(usage_payload, dict):
             turn_tokens = _turn_tokens(usage_payload)
@@ -280,7 +288,7 @@ class AgentController:
     ) -> None:
         tool_call_id = str(payload.get("tool_call_id", ""))
         tool_row_widget = ToolCallRow(tool_call_id, str(payload.get("tool_name", "")), str(payload.get("tool_args", "")))
-        self._mount_in_current_turn(chat_container, tool_row_widget)
+        self._mount_in_turn(chat_container, tool_row_widget)
         if tool_call_id:
             self._tool_row_by_call_id[tool_call_id] = tool_row_widget
 
@@ -319,9 +327,9 @@ class AgentController:
         except (TypeError, ValueError):
             return
         ratio_percent = round((prompt_tokens / max_context_tokens) * 100) if max_context_tokens > 0 else 0
-        self._mount_in_current_turn(
-            chat_container,
+        turn_block = self._start_new_turn_block(chat_container)
+        turn_block.mount(
             AssistantMessage(
                 f"[system] Context compacted at {ratio_percent}% (messages: {before_messages} -> {after_messages})."
-            ),
+            )
         )

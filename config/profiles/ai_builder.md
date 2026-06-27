@@ -6,6 +6,7 @@ description: AI构建师（以配置生成为主），负责用 Harzoo 高效生
 api_key: sk-fde32fbf71f4b40b9d3ed3955fb6722
 base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 model_name: qwen3.6-plus
+model_name: deepseek-v4-pro
 max_context_tokens: 128000
 tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, CompactContext, LoadSkill, SaveSkill
 

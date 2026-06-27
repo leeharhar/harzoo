@@ -124,12 +124,39 @@ class UserMessage(CopyableMessage):
         yield Static(self._copy_text, markup=False)
 
 
+class AssistantTurnBlock(Vertical):
+    """一轮 LLM 回复：assistant 正文 + 本轮工具调用，灰底块与用户消息对称。"""
+
+    DEFAULT_CSS = """
+    AssistantTurnBlock {
+        width: 100%;
+        height: auto;
+        background: $surface;
+        padding: 1 2 1 2;
+        margin: 0 0 1 0;
+    }
+    AssistantTurnBlock AssistantMessage {
+        width: 100%;
+        height: auto;
+        margin: 0;
+    }
+    AssistantTurnBlock AssistantMessage Markdown {
+        padding: 0;
+    }
+    AssistantTurnBlock ToolCallRow {
+        margin: 0 0 1 0;
+    }
+    AssistantTurnBlock ToolCallRow:last-child {
+        margin-bottom: 0;
+    }
+    """
+
+
 class AssistantMessage(CopyableMessage):
     DEFAULT_CSS = """
     AssistantMessage {
         width: 100%;
         height: auto;
-        margin: 1 0 0 0;
     }
     /* Textual's MarkdownFence defaults to black 10% in dark mode, which blends into the chat. */
     AssistantMessage MarkdownFence {
@@ -137,61 +164,10 @@ class AssistantMessage(CopyableMessage):
         border: none;
         padding: 0 1;
     }
-    TurnBlock .turn-content AssistantMessage {
-        margin: 0;
-    }
     """
 
     def compose(self) -> ComposeResult:
         yield Markdown(self._copy_text)
-
-
-class TurnBlock(Horizontal):
-    """一轮 LLM 输出：左侧圆点 + 竖线，右侧为正文与工具。"""
-
-    DEFAULT_CSS = """
-    TurnBlock {
-        width: 100%;
-        height: auto;
-        margin: 2 0 0 0;
-    }
-    TurnBlock .turn-gutter {
-        width: 2;
-        min-width: 2;
-        height: auto;
-    }
-    TurnBlock .turn-dot {
-        width: 2;
-        height: 1;
-        text-align: center;
-        content-align: center middle;
-        color: $primary 50%;
-    }
-    TurnBlock .turn-line {
-        width: 1;
-        height: 1fr;
-        min-height: 1;
-        margin-left: 1;
-        border-left: tall $primary 28%;
-    }
-    TurnBlock .turn-content {
-        width: 1fr;
-        height: auto;
-        padding: 0 0 1 1;
-    }
-    TurnBlock .turn-content ToolCallRow {
-        margin: 0 1 1 0;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        with Vertical(classes="turn-gutter"):
-            yield Static("·", classes="turn-dot", markup=False)
-            yield Container(classes="turn-line")
-        yield Vertical(classes="turn-content")
-
-    def mount_content(self, widget) -> None:
-        self.query_one(".turn-content", Vertical).mount(widget)
 
 
 class ToolCallRow(Vertical):
