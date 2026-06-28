@@ -60,6 +60,10 @@ class AgentApp(App[None]):
         margin-top: 1;
         color: $text-muted;
     }
+    ToastRack {
+        margin-bottom: 6;
+        margin-right: 1;
+    }
     """
 
     BINDINGS = [

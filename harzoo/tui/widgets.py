@@ -33,6 +33,7 @@ class CopyableMessage(Container):
         return selection.extract(self._copy_text), "\n"
 
     async def _on_click(self, event: Click) -> None:
+        """双击复制整条消息正文。"""
         if event.chain == 2 and self in event.widget.ancestors_with_self:
             if text := self._copy_text.strip():
                 self.app.copy_to_clipboard(text)
@@ -249,6 +250,43 @@ class ToolCallRow(Vertical):
         self._tool_arguments_text = tool_args
         self._tool_result_text = ""
         self._is_result_expanded = False
+
+    def _format_call_summary_copy_text(self) -> str | None:
+        """摘要行双击时复制：工具名 + 完整参数（非界面截断版）。"""
+        tool_name = self._tool_display_name.strip()
+        tool_args = self._tool_arguments_text.strip()
+        if not tool_name and not tool_args:
+            return None
+        return f"{tool_name} · {tool_args}" if tool_args else tool_name
+
+    def _copy_text_for_double_click(self, event: Click) -> str | None:
+        """按双击位置返回待复制文本：摘要行 → 调用信息，展开块 → 完整输出。"""
+        result_body = self.query_one(".tool-result-body", Static)
+        summary = self.query_one(".tool-summary", Horizontal)
+        if result_body in event.widget.ancestors_with_self:
+            if not result_body.has_class("is-expanded"):
+                return None
+            return self._tool_result_text.strip() or None
+        if summary in event.widget.ancestors_with_self:
+            return self._format_call_summary_copy_text()
+        return None
+
+    async def _on_click(self, event: Click) -> None:
+        """双击复制；▶/▼ 按钮区域不拦截，仍用于展开/收起。"""
+        if event.chain != 2:
+            await super()._on_click(event)
+            return
+        expand_button = self.query_one(".tool-expand", Button)
+        if expand_button in event.widget.ancestors_with_self:
+            await super()._on_click(event)
+            return
+        if copy_text := self._copy_text_for_double_click(event):
+            self.app.copy_to_clipboard(copy_text)
+            self.app.clear_selection()
+            self.notify("已复制", timeout=1.5)
+            event.stop()
+            return
+        await super()._on_click(event)
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="tool-summary"):

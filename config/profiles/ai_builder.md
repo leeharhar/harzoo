@@ -3,7 +3,7 @@
 profile_version: "2026-05-27"
 name: ai_builder
 description: AI构建师（以配置生成为主），负责用 Harzoo 高效生成并落盘用户专属智能体配置。
-api_key: sk-sp-D.IMDLR.xKYa.MEQCIHiJAJHkVmOsvoOY0VqhMZRZqm56tO6gulXb1owhZgzAAiBjCpRDa/sBVLUgWo0BsjOEhEsasYpUw7x1fESuIvVTlQ==
+api_key: sk-sjOEhEsasYpUw7x1fESuIvVTlQ
 base_url: https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
 model_name: deepseek-v4-flash
 max_context_tokens: 128000
