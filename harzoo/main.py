@@ -1,5 +1,3 @@
-"""编程智能体入口。"""
-
 from __future__ import annotations
 
 from pathlib import Path
