@@ -32,15 +32,8 @@ www.harzoo.com
 
    Edit files under the project `config/` directory:
 
-   ```text
-   config/
-   ├── config.json
-   ├── profiles/
-   └── tools/
-   ```
-
-   - Update API settings (`api_key`, `base_url`, `model_name`) in your profile under `profiles/`.
-   - Set `startup_profile` in `config.json` to your profile file.
+   - Open `config/profiles/ai_builder.md`, and set your `api_key`, `base_url`, and `model_name`.
+   - Open `config/config.json`, and replace `"xxxx.md"` with `"ai_builder.md"`:
 
 3. **Run**
 
