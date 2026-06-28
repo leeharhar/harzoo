@@ -7,7 +7,7 @@ import sys
 from queue import Queue
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, ScrollableContainer
+from textual.containers import ScrollableContainer, VerticalGroup
 from textual.widgets import Static, TextArea
 
 from .controller import AgentController
@@ -36,25 +36,28 @@ class AgentApp(App[None]):
     """主 TUI 应用。"""
 
     CSS = """
-    Screen { layout: vertical; }
+    Screen {
+        layout: vertical;
+        padding: 0 1 1 1;
+    }
     #chat {
         height: 1fr;
-        padding: 0 1;
+        padding: 0 0 1 0;
         scrollbar-gutter: auto;
         scrollbar-size-vertical: 0;
         scrollbar-size-horizontal: 0;
     }
     #input {
         height: auto;
-        min-height: 2;
-        padding: 1 2;
+        width: 1fr;
+        background: $background;
+        padding: 1 0 0 0;
     }
     #status-footer {
-        width: 1fr;
+        width: 100%;
         height: 1;
         text-align: right;
         margin-top: 1;
-        padding-right: 6;
         color: $text-muted;
     }
     """
@@ -71,14 +74,14 @@ class AgentApp(App[None]):
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="chat"):
             yield BannerMessage(BANNER, id="banner")
-        with Container(id="input"):
+        with VerticalGroup(id="input"):
             yield ChatInputTextArea(
                 text="",
                 soft_wrap=True,
                 show_line_numbers=False,
                 tab_behavior="focus",
                 highlight_cursor_line=False,
-                placeholder="Ask the AI…",
+                placeholder="Input your idea ...",
                 id="chat-input",
             )
             yield Static("", id="status-footer", markup=False)

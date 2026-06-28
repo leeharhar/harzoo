@@ -9,8 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.events import Click, Key
 from textual.message import Message
-from textual.widgets import Button, Markdown, Static
-from textual.widgets import TextArea
+from textual.widgets import Button, Markdown, Static, TextArea
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -54,7 +53,7 @@ class ChatInputTextArea(TextArea):
         min-height: 1;
         max-height: 8;
         padding: 0 1;
-        background: $surface;
+        background: $panel;
         border: solid $border-blurred;
         scrollbar-size-vertical: 0;
         scrollbar-size-horizontal: 0;
