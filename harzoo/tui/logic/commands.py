@@ -1,4 +1,4 @@
-"""TUI 命令：仅由 F1 命令选择器经 dispatch_command 调用。"""
+"""TUI 命令：由命令选择器经 dispatch_command 调用。"""
 
 from __future__ import annotations
 

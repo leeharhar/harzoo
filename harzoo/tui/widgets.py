@@ -141,6 +141,15 @@ class ChatInputTextArea(TextArea):
             self.text_area = text_area
             super().__init__()
 
+    class CommandPaletteRequested(Message):
+        """输入框为空时按下 / 并插入字符后发出。"""
+
+        bubble = True
+
+        def __init__(self, text_area: "ChatInputTextArea") -> None:
+            self.text_area = text_area
+            super().__init__()
+
     def on_key(self, event: Key) -> None:
         key = str(event.key).lower()
         if key == "at":
@@ -148,6 +157,14 @@ class ChatInputTextArea(TextArea):
             event.prevent_default()
             self.insert("@")
             self.post_message(self.AtInserted(self))
+            return
+        if key == "slash":
+            if self.text:
+                return
+            event.stop()
+            event.prevent_default()
+            self.insert("/")
+            self.post_message(self.CommandPaletteRequested(self))
             return
         if key not in {"enter", "shift+enter"}:
             return

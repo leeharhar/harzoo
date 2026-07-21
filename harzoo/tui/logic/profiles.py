@@ -1,4 +1,4 @@
-"""TUI F1 profile 列表：仅展示，不做路径解析。"""
+"""TUI profile 列表：仅展示，不做路径解析。"""
 
 from __future__ import annotations
 

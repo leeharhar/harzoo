@@ -101,7 +101,6 @@ class AgentApp(App[None]):
     """
 
     BINDINGS = [
-        ("f1", "command_palette", "Commands"),
         ("escape", "cancel", "Close"),
     ]
 
@@ -145,7 +144,7 @@ class AgentApp(App[None]):
                 show_line_numbers=False,
                 tab_behavior="focus",
                 highlight_cursor_line=False,
-                placeholder="Input your idea ...  (@ 文件 · F1 命令)",
+                placeholder="Input your idea ...  (@ 文件 · / 命令)",
                 id="chat-input",
             )
             yield Static("", id="status-footer", markup=False)
@@ -167,6 +166,11 @@ class AgentApp(App[None]):
     def on_chat_input_text_area_at_inserted(self, event: ChatInputTextArea.AtInserted) -> None:
         self.controller.on_at_inserted(event.text_area)
 
+    def on_chat_input_text_area_command_palette_requested(
+        self, _: ChatInputTextArea.CommandPaletteRequested
+    ) -> None:
+        self.controller.open_command_palette()
+
     def on_chat_input_text_area_submitted(self, _: ChatInputTextArea.Submitted) -> None:
         self._cancel.clear()
         self.controller.submit_chat_input()
@@ -176,9 +180,6 @@ class AgentApp(App[None]):
 
     def on_file_picker_path_selected(self, event: FilePicker.PathSelected) -> None:
         self.controller.insert_path_into_input(event.relative_path)
-
-    def action_command_palette(self) -> None:
-        self.controller.open_command_palette()
 
     def action_cancel(self) -> None:
         cmd_picker = self.query_one("#command-picker", CommandPicker)

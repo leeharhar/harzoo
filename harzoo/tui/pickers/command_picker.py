@@ -1,4 +1,4 @@
-"""F1 命令选择器：命令列表 → profile 角色列表。"""
+"""/ 命令选择器：命令列表 → profile 角色列表。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class CommandPickerStep(Enum):
 
 
 class CommandPicker(Vertical):
-    """F1 弹出：全量命令 → 可选 profile 列表。"""
+    """/ 弹出：全量命令 → 可选 profile 列表。"""
 
     class CommandSelected(Message):
         bubble = True

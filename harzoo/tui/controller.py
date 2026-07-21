@@ -170,7 +170,7 @@ class AgentController:
         self._previous_raw_input = raw_input_value
 
     def open_command_palette(self) -> None:
-        """F1：打开命令选择器（唯一命令入口）。"""
+        """/：打开命令选择器（唯一命令入口）。"""
         self.dismiss_file_picker()
         cmd_picker = self.app.query_one("#command-picker", CommandPicker)
         current = self._status_profile_name if self._status_profile_name != "—" else ""
