@@ -17,3 +17,7 @@ dist/
 build/
 site/
 tests/
+harzoo_user/data/
+scripts/
+harzoo_user/config/profiles/trading_*.md
+

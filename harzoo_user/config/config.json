@@ -1,0 +1,8 @@
+{
+  "startup_profile": "config_builder.md",
+  "placeholder_values": {
+    "MAIN_API_KEY": "sk-sp-D.IMDLR.xKYa.MEQCIHiJAJHkVmOsvoOY0VqhMZRZqm56tO6gulXb1owhZgzAAiBjCpRDa",
+    "MAIN_BASE_URL": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "MAIN_MODEL_NAME": "deepseek-v4-flash"
+  }
+}

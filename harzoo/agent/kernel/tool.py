@@ -4,6 +4,7 @@ from __future__ import annotations  # Context.agent 前向引用
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from harzoo.agent.kernel.message import UserInputSegments
@@ -14,12 +15,27 @@ if TYPE_CHECKING:
     from harzoo.agent.components.queue_out import QueueoutEmitter
 
 
+def resolve_workspace_path(raw: str, workspace_root: Path) -> Path:
+    """相对 workspace_root 解析路径；绝对路径（含 ~/）直接使用。"""
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p.resolve()
+    return (workspace_root / p).resolve()
+
+
+def workspace_root_from(ctx: "Context | None") -> Path:
+    if ctx is not None:
+        return ctx.config_paths.workspace_root
+    return Path.cwd().resolve()
+
+
 @dataclass(slots=True)
 class Context:
     state: list[dict[str, Any]]
     agent: Agent
     config_paths: ConfigPaths
     emitter: QueueoutEmitter | None = None
+    host_tool_call_id: str | None = None
 
 
 @dataclass(slots=True)

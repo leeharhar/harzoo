@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from queue import Empty, Queue
 from typing import Any
 
@@ -7,6 +8,7 @@ from harzoo.agent.agent import Agent
 from harzoo.agent.components import QueueoutEmitter
 from harzoo.agent.components.paths import ConfigPaths
 from harzoo.agent.components.prompt import refresh_context_usage_slot
+from harzoo.agent.control import handle_control
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context
 
@@ -23,7 +25,12 @@ def drain_queue_in(queue_in: Queue[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def engine(queue_in: Queue[dict[str, Any]], queue_out: Queue[Any], config_paths: ConfigPaths) -> None:
+def engine(
+    queue_in: Queue[dict[str, Any]],
+    queue_out: Queue[Any],
+    config_paths: ConfigPaths,
+    cancel: threading.Event,
+) -> None:
     """引擎：执行智能体决策和工具调用"""
 
     emitter = QueueoutEmitter(queue_out)
@@ -43,8 +50,23 @@ def engine(queue_in: Queue[dict[str, Any]], queue_out: Queue[Any], config_paths:
         try:
 
             # ====== 更新会话状态 ======
-            state.extend(drain_queue_in(queue_in))
+            incoming = drain_queue_in(queue_in)
+            controls = [item for item in incoming if item.get("role") == "control"]
+            messages = [item for item in incoming if item.get("role") != "control"]
+            state.extend(messages)
+            for ctrl in controls:
+                handle_control(
+                    ctrl,
+                    agent=agent,
+                    state=state,
+                    emitter=emitter,
+                    config_paths=config_paths,
+                )
             if not (state and state[-1].get("role") in ("user", "tool")):
+                continue
+
+            if cancel.is_set():
+                cancel.clear()
                 continue
 
             ctx = Context(state=state, agent=agent, config_paths=config_paths, emitter=emitter)
@@ -62,10 +84,17 @@ def engine(queue_in: Queue[dict[str, Any]], queue_out: Queue[Any], config_paths:
             # ====== 执行工具 ======
             if isinstance(tool_calls, list) and tool_calls:
                 for tool_call in tool_calls:
+                    if cancel.is_set():
+                        cancel.clear()
+                        break
                     call_id, fn = str(tool_call["id"]), tool_call["function"]
                     tool_name, args_str = str(fn["name"]), str(fn["arguments"])
                     emitter.emit_tool_started(tool_name, call_id, args_str)
-                    tool_result = agent.execute_tool_call(tool_name, args_str, ctx)
+                    ctx.host_tool_call_id = call_id
+                    try:
+                        tool_result = agent.execute_tool_call(tool_name, args_str, ctx)
+                    finally:
+                        ctx.host_tool_call_id = None
                     emitter.emit_tool_finished(call_id, tool_result)
                     queue_in.put(tool_message(call_id, tool_result))
                     if tool_result.injected_user_input_segments:

@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import threading
+from pathlib import Path
 from queue import Queue
 
 from textual.app import App, ComposeResult
 from textual.containers import ScrollableContainer, VerticalGroup
 from textual.widgets import Static, TextArea
 
+from harzoo.agent.components.paths import prepare_config_paths
+
 from .controller import AgentController
+from .pickers import CommandPicker, FilePicker
 from .widgets import BannerMessage, ChatInputTextArea
 
 BANNER = r"""
@@ -40,6 +45,11 @@ class AgentApp(App[None]):
         layout: vertical;
         padding: 0 1 1 1;
     }
+    #banner {
+        height: auto;
+        width: 100%;
+        margin: 0 0 1 0;
+    }
     #chat {
         height: 1fr;
         padding: 0 0 1 0;
@@ -64,33 +74,84 @@ class AgentApp(App[None]):
         margin-bottom: 6;
         margin-right: 1;
     }
+    #command-picker, #file-picker {
+        display: none;
+        width: 1fr;
+        height: auto;
+        margin-bottom: 1;
+        padding: 1 1;
+        background: $panel;
+    }
+    #command-picker.is-open, #file-picker.is-open {
+        display: block;
+    }
+    #command-picker-options, #file-picker-options {
+        padding: 0 1;
+        background: $panel;
+    }
+    #command-picker-options:focus, #file-picker-options:focus {
+        border: none;
+        background: $panel;
+        background-tint: transparent;
+    }
+    #command-picker-options > .option-list--option,
+    #file-picker-options > .option-list--option {
+        padding: 0 1;
+    }
     """
 
     BINDINGS = [
-        ("q", "quit", "Quit"),
+        ("f1", "command_palette", "Commands"),
+        ("escape", "cancel", "Close"),
     ]
 
-    def __init__(self, queue_in: Queue, queue_out: Queue, **kwargs) -> None:
+    def __init__(
+        self,
+        queue_in: Queue,
+        queue_out: Queue,
+        cancel: threading.Event,
+        *,
+        workspace_root: Path,
+        user_root: Path,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.queue_out = queue_out
-        self.controller = AgentController(app=self, queue_in=queue_in)
+        self._cancel = cancel
+        self._workspace_root = workspace_root.resolve()
+        self._profiles_root = prepare_config_paths(
+            user_root, workspace_root=workspace_root
+        ).profiles_root
+        self.controller = AgentController(
+            app=self,
+            queue_in=queue_in,
+        )
 
     def compose(self) -> ComposeResult:
-        with ScrollableContainer(id="chat"):
-            yield BannerMessage(BANNER, id="banner")
+        yield BannerMessage(BANNER, id="banner")
+        yield ScrollableContainer(id="chat")
         with VerticalGroup(id="input"):
+            yield CommandPicker(
+                profiles_root=self._profiles_root,
+                id="command-picker",
+            )
+            yield FilePicker(
+                workspace_root=self._workspace_root,
+                id="file-picker",
+            )
             yield ChatInputTextArea(
                 text="",
                 soft_wrap=True,
                 show_line_numbers=False,
                 tab_behavior="focus",
                 highlight_cursor_line=False,
-                placeholder="Input your idea ...",
+                placeholder="Input your idea ...  (@ 文件 · F1 命令)",
                 id="chat-input",
             )
             yield Static("", id="status-footer", markup=False)
 
     def on_mount(self) -> None:
+        self.controller.init_chat_view()
         self.set_interval(0.03, lambda: self.controller.drain_outbound_events(self.queue_out))
         self.controller.refresh_status_footer_view()
 
@@ -103,13 +164,55 @@ class AgentApp(App[None]):
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         self.controller.on_input_changed(event)
 
+    def on_chat_input_text_area_at_inserted(self, event: ChatInputTextArea.AtInserted) -> None:
+        self.controller.on_at_inserted(event.text_area)
+
     def on_chat_input_text_area_submitted(self, _: ChatInputTextArea.Submitted) -> None:
+        self._cancel.clear()
         self.controller.submit_chat_input()
 
-    def action_quit(self) -> None:
-        self.exit()
+    def on_command_picker_command_selected(self, event: CommandPicker.CommandSelected) -> None:
+        self.controller.run_picked_command(event.command, event.args)
+
+    def on_file_picker_path_selected(self, event: FilePicker.PathSelected) -> None:
+        self.controller.insert_path_into_input(event.relative_path)
+
+    def action_command_palette(self) -> None:
+        self.controller.open_command_palette()
+
+    def action_cancel(self) -> None:
+        cmd_picker = self.query_one("#command-picker", CommandPicker)
+        if cmd_picker.is_open:
+            cmd_picker.close_picker()
+            self.query_one("#chat-input", ChatInputTextArea).focus()
+            return
+        picker = self.query_one("#file-picker", FilePicker)
+        if picker.is_open:
+            if picker.go_up():
+                return
+            self.controller.dismiss_file_picker()
+            self.query_one("#chat-input", ChatInputTextArea).focus()
+            return
 
 
-def run_tui(queue_in: Queue, queue_out: Queue) -> None:
+def run_tui(
+    queue_in: Queue,
+    queue_out: Queue,
+    cancel: threading.Event,
+    *,
+    workspace_root: Path | None = None,
+    user_root: Path | None = None,
+) -> None:
     """启动 TUI 应用。"""
-    AgentApp(queue_in=queue_in, queue_out=queue_out).run()
+    resolved_workspace = (workspace_root or Path.cwd()).resolve()
+    if user_root is None:
+        from harzoo.agent.components.paths import default_user_root
+
+        user_root = default_user_root()
+    AgentApp(
+        queue_in=queue_in,
+        queue_out=queue_out,
+        cancel=cancel,
+        workspace_root=resolved_workspace,
+        user_root=user_root,
+    ).run()

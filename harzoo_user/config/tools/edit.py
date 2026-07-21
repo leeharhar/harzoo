@@ -6,20 +6,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from harzoo.agent.kernel.tool import Tool, ToolResult
+from harzoo.agent.kernel.tool import Tool, ToolResult, resolve_workspace_path, workspace_root_from
 
 TOOL_VERSION = "2026-05-22"
 
 ENCODING_POLICY = "utf8_only"
-
-
-def resolve_tool_path(path: str) -> Path:
-    """相对路径统一按当前工作目录解析。"""
-
-    p = Path(path).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (Path.cwd() / p).resolve()
 
 
 def decode_utf8_only(data: bytes) -> tuple[str, str, bool]:
@@ -37,17 +28,18 @@ def read_file_text(path: Path) -> tuple[str, str, bool]:
 
 def safe_file_op(fn: Callable) -> Callable:
     def wrapper(self, file_path: str, *args, **kwargs):
+        root = workspace_root_from(kwargs.get("ctx"))
         try:
             return fn(self, file_path, *args, **kwargs)
         except FileNotFoundError:
-            resolved = str(resolve_tool_path(file_path))
+            resolved = str(resolve_workspace_path(file_path, root))
             return ToolResult.failure(
                 f"Path not found: {file_path}",
                 code="PATH_NOT_FOUND",
                 data={"requested_file_path": file_path, "resolved_file_path": resolved},
             )
         except PermissionError as e:
-            resolved = str(resolve_tool_path(file_path))
+            resolved = str(resolve_workspace_path(file_path, root))
             return ToolResult.failure(
                 str(e),
                 code="PATH_NOT_ACCESSIBLE",
@@ -82,7 +74,7 @@ class EditTool(Tool):
             return ToolResult.failure("file_path must not be empty", code="INVALID_ARGUMENTS")
         if old_string == "":
             return ToolResult.failure("old_string must not be empty", code="INVALID_ARGUMENTS")
-        p = resolve_tool_path(file_path)
+        p = resolve_workspace_path(file_path, workspace_root_from(kwargs.get("ctx")))
         text, encoding_used, had_replacements = read_file_text(p)
         if had_replacements:
             # 限制：在 utf8_only 策略下，疑似非 UTF-8 文件直接拒绝编辑，避免破坏内容。

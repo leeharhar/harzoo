@@ -6,20 +6,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from harzoo.agent.kernel.tool import Tool, ToolResult
+from harzoo.agent.kernel.tool import Tool, ToolResult, resolve_workspace_path, workspace_root_from
 
 TOOL_VERSION = "2026-05-22"
 
 ENCODING_POLICY = "utf8_only"
-
-
-def resolve_tool_path(path: str) -> Path:
-    """搜索根目录的相对路径统一按当前工作目录解析。"""
-
-    p = Path(path).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (Path.cwd() / p).resolve()
 
 
 def decode_utf8_only(data: bytes) -> tuple[str, str, bool]:
@@ -73,7 +64,7 @@ class GrepTool(Tool):
                 return ToolResult.failure("output_mode must be one of: content, files_with_matches, count", code="INVALID_ARGUMENTS")
             if int(head_limit) < 1:
                 return ToolResult.failure("head_limit must be >= 1", code="INVALID_ARGUMENTS")
-            base = resolve_tool_path(path)
+            base = resolve_workspace_path(path, workspace_root_from(kwargs.get("ctx")))
             if not base.exists():
                 return ToolResult.failure(f"Path not found: {path}", code="PATH_NOT_FOUND")
             flags = re.IGNORECASE if _case_insensitive(kwargs) else 0

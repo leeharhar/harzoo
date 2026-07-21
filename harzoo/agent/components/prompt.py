@@ -5,8 +5,10 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import re
+from datetime import date
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -141,23 +143,30 @@ def build_skills_section(*, skill_manifests: list[Path]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_runtime_environment_section() -> str:
-    """运行环境信息（操作系统），位于 ## Runtime Environment 下。"""
-
-    base_section = "## Runtime Environment"
+def _detect_shell_label() -> str:
     system_name = platform.system().lower().strip()
-    os_name = {"windows": "windows", "darwin": "macos"}.get(system_name, "linux")
-    shell_type = "powershell" if os_name == "windows" else "bash"
-    facts_section = "\n".join(
+    os_label = {"darwin": "macOS", "windows": "Windows"}.get(system_name, "Linux")
+    if system_name == "windows":
+        shell = "powershell"
+    else:
+        shell = Path(os.environ.get("SHELL", "")).name or "bash"
+    return f"{shell} ({os_label})"
+
+
+def build_runtime_environment_section(*, workspace_root: Path) -> str:
+    """运行环境信息，位于 ## Runtime Environment 下。"""
+
+    facts = "\n".join(
         (
-            f"- os_name: {os_name}",
-            f"- shell_type: {shell_type}",
+            f"Workspace: {workspace_root.resolve()}",
+            f"Shell: {_detect_shell_label()}",
+            f"Date: {date.today().isoformat()}",
+            "",
+            "Relative paths in file tools resolve against Workspace. "
+            "If unsure of a file location, use Glob or Grep first.",
         )
     )
-
-    parts = [base_section, facts_section]
-
-    return "\n".join(parts)
+    return f"## Runtime Environment\n\n{facts}"
 
 
 # ---------------------------------------------------------------------------
@@ -199,12 +208,13 @@ def assemble_system_prompt(
     skill_manifests: list[Path],
     subagent_names: Sequence[str],
     subagent_paths: list[Path],
+    workspace_root: Path,
 ) -> str:
     # 拼接顺序：正文 → Skills 目录 → Subagents 目录 → 运行环境 → Self state
     base_section = base_prompt
     skills_section = build_skills_section(skill_manifests=skill_manifests)
     catalog_section = build_subagents_section(subagent_names=subagent_names, subagent_paths=subagent_paths)
-    runtime_environment_section = build_runtime_environment_section()
+    runtime_environment_section = build_runtime_environment_section(workspace_root=workspace_root)
     self_state_section = build_self_state_section()
     parts = [base_section, skills_section, catalog_section, runtime_environment_section, self_state_section]
     system_prompt = "\n\n".join(part for part in parts if part.strip())

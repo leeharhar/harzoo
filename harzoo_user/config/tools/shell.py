@@ -9,21 +9,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from harzoo.agent.kernel.tool import Tool, ToolResult
+from harzoo.agent.kernel.tool import Tool, ToolResult, resolve_workspace_path, workspace_root_from
 
 TOOL_VERSION = "2026-05-30"
 
 MAX_OUTPUT_CHARS = 200_000
 ENCODING_POLICY = "utf8_only"
-
-
-def _resolve_path(path: str) -> Path:
-    """统一把调用方传入的 cwd 解析成绝对路径，保证不同命令行为一致。"""
-
-    p = Path(path).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (Path.cwd() / p).resolve()
 
 
 def _decode_shell_bytes(raw: bytes | None) -> tuple[str, str, bool]:
@@ -129,7 +120,8 @@ class ShellTool(Tool):
         if not str(cwd).strip():
             return ToolResult.failure("cwd must not be empty", code="INVALID_ARGUMENTS")
         timeout_ms = max(1, min(600_000, timeout or 120000))
-        cwd_path = str(_resolve_path(cwd))
+        root = workspace_root_from(kwargs.get("ctx"))
+        cwd_path = str(resolve_workspace_path(cwd, root))
         shell_label = "unknown"
         try:
             shell_command, shell_label, shell_env_overrides = _resolve_shell_command(command)

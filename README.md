@@ -30,10 +30,10 @@ www.harzoo.com
 
 2. **Configure**
 
-   Edit files under the project `config/` directory:
+   Under `harzoo_user/`:
 
-   - Open `config/profiles/ai_builder.md`, and set your `api_key`, `base_url`, and `model_name`.
-   - Open `config/config.json`, and replace `"xxxx.md"` with `"ai_builder.md"`:
+   - Edit `harzoo_user/config/config.json`: set `startup_profile` and `placeholder_values` (API keys, base URL, model names).
+   - Profiles live in `harzoo_user/config/profiles/`; use placeholder names like `MAIN_API_KEY` in YAML front matter.
 
 3. **Run**
 
@@ -48,14 +48,12 @@ www.harzoo.com
 ### High-level
 
 ```python
-from pathlib import Path
-
 import harzoo
 from harzoo import start
+from harzoo.agent.components.paths import default_user_root
 from harzoo.agent.kernel.message import user_message
 
-config_dir = Path(harzoo.__file__).resolve().parents[1] / "config"
-queue_in, queue_out = start(config_dir)
+queue_in, queue_out = start(default_user_root())
 
 user_message = user_message([{"type": "text", "text": "Hello"}])
 queue_in.put(user_message)
@@ -68,14 +66,12 @@ print(queue_out.get())
 ```python
 from pathlib import Path
 
-import harzoo
-from harzoo import Agent
-from harzoo.agent.components.paths import prepare_config_paths
+from harzoo.agent import Agent
+from harzoo.agent.components.paths import default_user_root, prepare_config_paths
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context
 
-config_dir = Path(harzoo.__file__).resolve().parents[1] / "config"
-paths = prepare_config_paths(config_dir)
+paths = prepare_config_paths(default_user_root())
 agent = Agent.from_profile(paths.startup_profile_path, paths)
 
 state = []

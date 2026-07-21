@@ -6,20 +6,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from harzoo.agent.kernel.tool import Tool, ToolResult
+from harzoo.agent.kernel.tool import Tool, ToolResult, resolve_workspace_path, workspace_root_from
 
 TOOL_VERSION = "2026-05-22"
 
 ENCODING_POLICY = "utf8_only"
-
-
-def resolve_tool_path(path: str) -> Path:
-    """相对路径统一按当前工作目录解析，避免不同工具的路径语义不一致。"""
-
-    p = Path(path).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (Path.cwd() / p).resolve()
 
 
 def decode_utf8_only(data: bytes) -> tuple[str, str, bool]:
@@ -37,17 +28,18 @@ def read_file_text(path: Path) -> tuple[str, str, bool]:
 
 def safe_file_op(fn: Callable) -> Callable:
     def wrapper(self, file_path: str, *args, **kwargs):
+        root = workspace_root_from(kwargs.get("ctx"))
         try:
             return fn(self, file_path, *args, **kwargs)
         except FileNotFoundError:
-            resolved = str(resolve_tool_path(file_path))
+            resolved = str(resolve_workspace_path(file_path, root))
             return ToolResult.failure(
                 f"Path not found: {file_path}",
                 code="PATH_NOT_FOUND",
                 data={"requested_file_path": file_path, "resolved_file_path": resolved},
             )
         except PermissionError as e:
-            resolved = str(resolve_tool_path(file_path))
+            resolved = str(resolve_workspace_path(file_path, root))
             return ToolResult.failure(
                 str(e),
                 code="PATH_NOT_ACCESSIBLE",
@@ -63,7 +55,7 @@ class ReadTool(Tool):
     """文件读取工具，支持按行窗口读取，避免一次返回超长内容。"""
 
     name = "Read"
-    description = "Read file contents. Paths are relative to workspace unless absolute."
+    description = "Read file contents. Paths are relative to workspace root unless absolute."
     parameters = {
         "properties": {
             "file_path": {"type": "string", "description": "Path to the file"},
@@ -83,7 +75,8 @@ class ReadTool(Tool):
             return ToolResult.failure("offset must be >= 1", code="INVALID_ARGUMENTS")
         if limit is not None and int(limit) < 1:
             return ToolResult.failure("limit must be >= 1", code="INVALID_ARGUMENTS")
-        p = resolve_tool_path(file_path)
+        root = workspace_root_from(kwargs.get("ctx"))
+        p = resolve_workspace_path(file_path, root)
         raw, encoding_used, had_replacements = read_file_text(p)
         lines = raw.splitlines()
         if offset is not None:

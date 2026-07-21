@@ -34,7 +34,10 @@ class Agent:
     def from_profile(cls, profile_path: Path, config_paths: ConfigPaths) -> Agent:
         """从配置文件初始化智能体"""
 
-        profile = load_profile_file(profile_path)
+        profile = load_profile_file(
+            profile_path,
+            placeholder_values=config_paths.placeholder_values,
+        )
         tools = ToolHub(config_paths.tools_root, profile.tool_names)
         llm = LLM(cls._make_llm_config(profile, config_paths, tools))
         return cls(profile=profile, llm=llm, tools=tools)
@@ -42,7 +45,10 @@ class Agent:
     def rebind_profile(self, profile_path: Path, *, config_paths: ConfigPaths) -> None:
         """切换配置文件；校验失败时不修改当前 agent。"""
 
-        profile = load_profile_file(profile_path)
+        profile = load_profile_file(
+            profile_path,
+            placeholder_values=config_paths.placeholder_values,
+        )
         tools = ToolHub(config_paths.tools_root, profile.tool_names)
         llm = LLM(self._make_llm_config(profile, config_paths, tools))
         self.profile = profile
@@ -56,6 +62,7 @@ class Agent:
             skill_manifests=list_skill_manifests(config_paths),
             subagent_names=profile.subagent_names,
             subagent_paths=list_subagent_paths(config_paths),
+            workspace_root=config_paths.workspace_root,
         )
         loaded = tools.list_tools()
         schema = tools.get_schemas(loaded) if loaded else None

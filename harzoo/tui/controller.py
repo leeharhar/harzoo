@@ -14,16 +14,51 @@ from textual.widgets import Static, TextArea
 
 from harzoo.agent.components import QueueoutEventName
 from harzoo.agent.kernel.message import user_message
-from .processing import (
+from .logic.commands import dispatch_command
+from .logic.processing import (
     IMAGE_PLACEHOLDER_PATTERN,
     build_user_message_content_parts,
     format_user_message_for_chat,
     replace_image_paths_with_placeholders,
     sync_attachments_with_placeholders,
 )
-from .widgets import AgentActivityLine, AssistantMessage, AssistantTurnBlock, ErrorMessage, ToolCallRow, UserMessage
+from .pickers.command_picker import CommandPicker
+from .pickers.file_picker import FilePicker
+from .widgets import (
+    AgentActivityLine,
+    AssistantMessage,
+    AssistantTurnBlock,
+    ErrorMessage,
+    SubtaskToolCallRow,
+    SystemMessage,
+    ToolCallRow,
+    UserMessage,
+)
 
 EventHandler = Callable[[dict[str, Any], dict[str, Any], ScrollableContainer], None]
+
+
+def _location_to_offset(text: str, location: tuple[int, int]) -> int:
+    row, col = location
+    lines = text.split("\n")
+    if row >= len(lines):
+        return len(text)
+    return sum(len(lines[i]) + 1 for i in range(row)) + min(col, len(lines[row]))
+
+
+def _offset_to_location(text: str, offset: int) -> tuple[int, int]:
+    offset = max(0, min(offset, len(text)))
+    row = 0
+    col = 0
+    for index, char in enumerate(text):
+        if index == offset:
+            return (row, col)
+        if char == "\n":
+            row += 1
+            col = 0
+        else:
+            col += 1
+    return (row, col)
 
 
 def _turn_tokens(usage: dict[str, Any]) -> int:
@@ -55,13 +90,18 @@ def _compact_int(value: int) -> str:
 class AgentController:
     """控制 TUI 交互与出站事件渲染。"""
 
-    def __init__(self, app: App[None], queue_in: Queue) -> None:
+    def __init__(
+        self,
+        app: App[None],
+        queue_in: Queue,
+    ) -> None:
         self.app = app
         self.queue_in = queue_in
         self._tool_row_by_call_id: dict[str, ToolCallRow] = {}
         self._activity_line_widget: AgentActivityLine | None = None
         self._previous_raw_input = ""
         self._pending_image_attachments: list[Path] = []
+        self._mention_start: int | None = None
         self._skip_next_input_change = False
         self._status_model_name = "—"
         self._status_profile_name = "—"
@@ -76,10 +116,13 @@ class AgentController:
             QueueoutEventName.THINKING_START: self._handle_thinking_started_event,
             QueueoutEventName.THINKING_END: self._handle_thinking_finished_event,
             QueueoutEventName.ASSISTANT_MESSAGE: self._handle_assistant_message_event,
+            QueueoutEventName.SUBTASK_LIVE: self._handle_subtask_live_event,
+            QueueoutEventName.SUBTASK_ENTRY: self._handle_subtask_entry_event,
             QueueoutEventName.CONTEXT_COMPACTED: self._handle_context_compacted_event,
             QueueoutEventName.TOOL_START: self._handle_tool_started_event,
             QueueoutEventName.TOOL_END: self._handle_tool_finished_event,
             QueueoutEventName.ERROR: self._handle_error_event,
+            QueueoutEventName.SESSION_RESET: self._handle_session_reset_event,
         }
 
     def refresh_status_footer_view(self) -> None:
@@ -97,7 +140,6 @@ class AgentController:
 
     def drain_outbound_events(self, outbound_queue: Queue) -> None:
         """排空出站队列并分派到 UI 处理器。"""
-        handled_event_count = 0
         chat_container = self._get_chat_container()
         while True:
             try:
@@ -109,10 +151,6 @@ class AgentController:
             event_name = QueueoutEventName(str(event_name_raw))
             if handler := self._event_handler_by_name.get(event_name):
                 handler(outbound_event.get("payload", {}), outbound_event.get("error", {}), chat_container)
-            handled_event_count += 1
-
-        if handled_event_count:
-            self._scroll_chat_to_bottom()
 
     def on_input_changed(self, event: TextArea.Changed) -> None:
         """处理输入变化，含图片路径占位符改写。"""
@@ -131,6 +169,34 @@ class AgentController:
 
         self._previous_raw_input = raw_input_value
 
+    def open_command_palette(self) -> None:
+        """F1：打开命令选择器（唯一命令入口）。"""
+        self.dismiss_file_picker()
+        cmd_picker = self.app.query_one("#command-picker", CommandPicker)
+        current = self._status_profile_name if self._status_profile_name != "—" else ""
+        cmd_picker.set_current_profile(current)
+        cmd_picker.open_picker()
+
+    def on_at_inserted(self, text_area: TextArea) -> None:
+        """@ 键：打开文件选择器。"""
+        if text_area.id != "chat-input":
+            return
+
+        cmd_picker = self.app.query_one("#command-picker", CommandPicker)
+        if cmd_picker.is_open:
+            cmd_picker.close_picker()
+
+        self._mention_start = _location_to_offset(text_area.text, text_area.cursor_location) - 1
+        self.app.query_one("#file-picker", FilePicker).open_picker()
+
+    def run_picked_command(self, command: str, args: list[str]) -> None:
+        """CommandPicker 选中后立即执行。"""
+        input_widget = self.app.query_one("#chat-input", TextArea)
+        input_widget.clear()
+        self._reset_input_tracking()
+        dispatch_command(self, command, args)
+        self.anchor_chat()
+
     def _apply_path_placeholder_rewrite(self, event: TextArea.Changed, raw_input_value: str) -> bool:
         """将检测到的图片路径改写为占位符并同步附件。"""
         sync_attachments_with_placeholders(raw_input_value, self._pending_image_attachments)
@@ -140,12 +206,47 @@ class AgentController:
         event.text_area.text = text_with_placeholders
         return True
 
+    def emit_system(self, text: str) -> None:
+        """挂载灰色系统行。"""
+        if not text.strip():
+            return
+        self._get_chat_container().mount(SystemMessage(text))
+
+    def insert_path_into_input(self, relative_path: str) -> None:
+        """将 @ 替换为选中的路径。"""
+        input_widget = self.app.query_one("#chat-input", TextArea)
+        snippet = relative_path.strip()
+        start = self._mention_start
+        if not snippet or start is None:
+            return
+
+        text = input_widget.text
+        if not (0 <= start < len(text) and text[start] == "@"):
+            return
+
+        end = _location_to_offset(text, input_widget.cursor_location)
+        input_widget.replace(
+            f"{snippet} ",
+            _offset_to_location(text, start),
+            _offset_to_location(text, end),
+            maintain_selection_offset=False,
+        )
+
+        self._mention_start = None
+        self._skip_next_input_change = True
+        self._previous_raw_input = input_widget.text
+        input_widget.focus()
+
     def submit_chat_input(self) -> None:
         """从当前输入构建入站 user_message 载荷。"""
         input_widget = self.app.query_one("#chat-input", TextArea)
         submitted_text = input_widget.text.strip()
         if not submitted_text:
             return
+
+        input_widget.clear()
+        self._reset_input_tracking()
+
         try:
             if IMAGE_PLACEHOLDER_PATTERN.search(submitted_text):
                 parts = build_user_message_content_parts(submitted_text, self._pending_image_attachments)
@@ -153,33 +254,43 @@ class AgentController:
                 parts = [{"type": "text", "text": submitted_text}]
         except ValueError as error:
             self._get_chat_container().mount(ErrorMessage(str(error)))
-            self._scroll_chat_to_bottom()
+            self.anchor_chat()
             return
 
-        input_widget.clear()
-        self._reset_input_tracking()
         self._mount_user_message(submitted_text)
         self._current_turn_block = None
         self._is_waiting_assistant_reply = True
-        self._scroll_chat_to_bottom()
+        self.anchor_chat()
         self.queue_in.put(user_message(parts))
 
     def _mount_user_message(self, submitted_text: str) -> None:
         """将格式化后的用户消息挂载到聊天区。"""
         self._get_chat_container().mount(UserMessage(format_user_message_for_chat(submitted_text)))
 
+    def dismiss_file_picker(self) -> None:
+        """关闭文件选择器并清除 @ 替换位置。"""
+        self._mention_start = None
+        file_picker = self.app.query_one("#file-picker", FilePicker)
+        if file_picker.is_open:
+            file_picker.close_picker()
+
     def _reset_input_tracking(self) -> None:
         """重置输入追踪与待发送图片附件。"""
         self._previous_raw_input = ""
         self._pending_image_attachments.clear()
+        self.dismiss_file_picker()
 
     def _get_chat_container(self) -> ScrollableContainer:
         """返回聊天消息容器组件。"""
         return self.app.query_one("#chat", ScrollableContainer)
 
-    def _scroll_chat_to_bottom(self) -> None:
-        """滚动聊天区到底部，忽略瞬时 UI 时序错误。"""
-        self._get_chat_container().scroll_end(animate=False)
+    def init_chat_view(self) -> None:
+        """启动时消息区滚到顶部。"""
+        self._get_chat_container().scroll_home(animate=False, immediate=True)
+
+    def anchor_chat(self) -> None:
+        """消息区跟尾（banner 在滚动区外，不受 anchor 影响）。"""
+        self._get_chat_container().anchor()
 
     def _remove_activity_line(self) -> None:
         """移除当前活动行组件（若存在）。"""
@@ -280,6 +391,30 @@ class AgentController:
         if self._is_waiting_assistant_reply:
             self._is_waiting_assistant_reply = False
 
+    def _subtask_row(self, host_call_id: str) -> SubtaskToolCallRow | None:
+        row = self._tool_row_by_call_id.get(host_call_id)
+        return row if isinstance(row, SubtaskToolCallRow) else None
+
+    def _handle_subtask_live_event(
+        self,
+        payload: dict[str, Any],
+        _: dict[str, Any],
+        __: ScrollableContainer,
+    ) -> None:
+        host_call_id = str(payload.get("host_call_id", "")).strip()
+        if row := self._subtask_row(host_call_id):
+            row.set_live(str(payload.get("label", "")))
+
+    def _handle_subtask_entry_event(
+        self,
+        payload: dict[str, Any],
+        _: dict[str, Any],
+        __: ScrollableContainer,
+    ) -> None:
+        host_call_id = str(payload.get("host_call_id", "")).strip()
+        if row := self._subtask_row(host_call_id):
+            row.append_line(str(payload.get("line", "")))
+
     def _handle_tool_started_event(
         self,
         payload: dict[str, Any],
@@ -287,7 +422,12 @@ class AgentController:
         chat_container: ScrollableContainer,
     ) -> None:
         tool_call_id = str(payload.get("tool_call_id", ""))
-        tool_row_widget = ToolCallRow(tool_call_id, str(payload.get("tool_name", "")), str(payload.get("tool_args", "")))
+        tool_name = str(payload.get("tool_name", ""))
+        tool_args = str(payload.get("tool_args", ""))
+        if tool_name == "SubtaskAgent":
+            tool_row_widget: ToolCallRow = SubtaskToolCallRow(tool_call_id, tool_name, tool_args)
+        else:
+            tool_row_widget = ToolCallRow(tool_call_id, tool_name, tool_args)
         self._mount_in_turn(chat_container, tool_row_widget)
         if tool_call_id:
             self._tool_row_by_call_id[tool_call_id] = tool_row_widget
@@ -301,6 +441,30 @@ class AgentController:
         tool_call_id = str(payload.get("tool_call_id", ""))
         if tool_row_widget := self._tool_row_by_call_id.pop(tool_call_id, None):
             tool_row_widget.mark_completed(bool(payload.get("ok")), str(payload.get("tool_result", "")))
+
+    def _handle_session_reset_event(
+        self,
+        _: dict[str, Any],
+        __: dict[str, Any],
+        ___: ScrollableContainer,
+    ) -> None:
+        self._clear_chat_ui()
+        self.emit_system("会话已清空。")
+        self.anchor_chat()
+
+    def _clear_chat_ui(self) -> None:
+        """清空消息滚动区并重置 UI 会话状态（顶栏 banner 保留）。"""
+        chat_container = self._get_chat_container()
+        for child in list(chat_container.children):
+            child.remove()
+        self._tool_row_by_call_id.clear()
+        self._remove_activity_line()
+        self._current_turn_block = None
+        self._is_waiting_assistant_reply = False
+        self._last_turn_tokens = 0
+        self._session_total_tokens = 0
+        self._status_usage_ratio_text = ""
+        self.refresh_status_footer_view()
 
     def _handle_error_event(
         self,

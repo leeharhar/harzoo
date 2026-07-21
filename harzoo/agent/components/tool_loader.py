@@ -1,8 +1,8 @@
-"""从 config/tools 发现并加载工具插件。
+"""从 harzoo_user/config/tools 发现并加载工具插件。
 
-config/tools 约定：每个工具单文件、自包含；只依赖 harzoo.agent.kernel.tool（及 stdlib 等）。
+harzoo_user/config/tools 约定：每个工具单文件、自包含；只依赖 harzoo.agent.kernel.tool（及 stdlib 等）。
 勿在 harzoo/agent/components 为工具抽共享模块，勿跨 tools 文件 import。
-Skill 在 config/skills/，与 profile 无关。
+Skill 在 harzoo_user/config/skills/，与 profile 无关。
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ from typing import Any
 
 from harzoo.agent.components.util import ConfigError
 from harzoo.agent.kernel.tool import Tool
+
+# 同进程内每个工具文件只 exec 一次，模块级状态（如 Browser._SESSION）得以保留。
+_PROCESS_MODULE_CACHE: dict[Path, Any] = {}
 
 
 def load_tools_from_disk(tools_root: Path, tool_names: Sequence[str]) -> list[Tool]:
@@ -69,18 +72,30 @@ def load_tools_from_disk(tools_root: Path, tool_names: Sequence[str]) -> list[To
 
 
 def _load_module(path: Path, cache: dict[Path, Any]) -> Any:
-    """加载工具模块"""
+    """加载工具模块；同一进程内每个文件只 exec 一次。"""
 
-    if path in cache:
-        return cache[path]
+    resolved = path.resolve()
+    if resolved in cache:
+        return cache[resolved]
+    if resolved in _PROCESS_MODULE_CACHE:
+        cache[resolved] = _PROCESS_MODULE_CACHE[resolved]
+        return _PROCESS_MODULE_CACHE[resolved]
+
     name = f"_harzoo_tool.{path.stem}"
+    existing = sys.modules.get(name)
+    if existing is not None:
+        _PROCESS_MODULE_CACHE[resolved] = existing
+        cache[resolved] = existing
+        return existing
+
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load tool module: {path}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
-    cache[path] = mod
+    _PROCESS_MODULE_CACHE[resolved] = mod
+    cache[resolved] = mod
     return mod
 
 

@@ -16,7 +16,10 @@ class QueueoutEventName(StrEnum):
     TOOL_START = "tool_start"
     TOOL_END = "tool_end"
     ASSISTANT_MESSAGE = "assistant_message"
+    SUBTASK_LIVE = "subtask_live"
+    SUBTASK_ENTRY = "subtask_entry"
     CONTEXT_COMPACTED = "context_compacted"
+    SESSION_RESET = "session_reset"
     ERROR = "error"
 
 
@@ -58,8 +61,25 @@ class QueueoutEmitter:
             payload["usage"] = {"prompt_tokens": int(usage.get("prompt_tokens", 0)), "completion_tokens": int(usage.get("completion_tokens", 0)), "total_tokens": int(usage.get("total_tokens", 0)), "latency_ms": int(usage.get("latency_ms", 0))}
         self._emit(QueueoutEventName.ASSISTANT_MESSAGE, payload)
 
+    def emit_subtask_live(self, host_call_id: str, label: str) -> None:
+        host_id = str(host_call_id).strip()
+        text = str(label).strip()
+        if not host_id or not text:
+            return
+        self._emit(QueueoutEventName.SUBTASK_LIVE, {"host_call_id": host_id, "label": text})
+
+    def emit_subtask_entry(self, host_call_id: str, line: str) -> None:
+        host_id = str(host_call_id).strip()
+        text = str(line).strip()
+        if not host_id or not text:
+            return
+        self._emit(QueueoutEventName.SUBTASK_ENTRY, {"host_call_id": host_id, "line": text})
+
     def emit_context_compacted(self, *, prompt_tokens: int, max_context_tokens: int, before_messages: int, after_messages: int) -> None:
         self._emit(QueueoutEventName.CONTEXT_COMPACTED, {"prompt_tokens": int(prompt_tokens), "max_context_tokens": int(max_context_tokens), "before_messages": int(before_messages), "after_messages": int(after_messages)})
+
+    def emit_session_reset(self) -> None:
+        self._emit(QueueoutEventName.SESSION_RESET, {})
 
     def emit_error(self, message: str, *, retriable: bool = False, details: dict[str, Any] | None = None) -> None:
         self._emit(QueueoutEventName.ERROR, {"message": message}, error={"message": message, "retriable": retriable, "details": details or {}})

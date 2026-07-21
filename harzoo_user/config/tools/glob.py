@@ -5,18 +5,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from harzoo.agent.kernel.tool import Tool, ToolResult
+from harzoo.agent.kernel.tool import Tool, ToolResult, resolve_workspace_path, workspace_root_from
 
 TOOL_VERSION = "2026-05-22"
-
-
-def resolve_tool_path(path: str) -> Path:
-    """相对路径统一按当前工作目录解析。"""
-
-    p = Path(path).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (Path.cwd() / p).resolve()
 
 
 class GlobTool(Tool):
@@ -39,7 +30,7 @@ class GlobTool(Tool):
             return ToolResult.failure("pattern must not be empty", code="INVALID_ARGUMENTS")
         if not str(path).strip():
             return ToolResult.failure("path must not be empty", code="INVALID_ARGUMENTS")
-        base = resolve_tool_path(path)
+        base = resolve_workspace_path(path, workspace_root_from(kwargs.get("ctx")))
         if not base.exists():
             return ToolResult.failure(
                 f"Path not found: {path}",
