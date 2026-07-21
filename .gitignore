@@ -17,7 +17,9 @@ dist/
 build/
 site/
 tests/
-harzoo_user/data/
+# Local runtime data (tracked README only)
+harzoo_user/data/*
+!harzoo_user/data/README.md
 scripts/
 harzoo_user/config/profiles/trading_*.md
 
