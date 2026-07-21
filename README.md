@@ -4,7 +4,7 @@ Harzoo is a small, flexible, and transparent AI Agent framework.
 
 Just 1300 lines of Python code, you can read and own it.
 
-You can build your own AI. 
+You can build your own AI Agent. 
 
 ## Documentation
 
