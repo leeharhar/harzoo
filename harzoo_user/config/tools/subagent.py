@@ -8,7 +8,11 @@ from typing import Any
 
 from harzoo.agent.agent import Agent
 from harzoo.agent.components.paths import ConfigPaths
-from harzoo.agent.components.prompt import refresh_context_usage_slot
+from harzoo.agent.components.context_compact import (
+    compact_context_state,
+    should_auto_compact_after_llm,
+    usage_prompt_tokens,
+)
 from harzoo.agent.components.tool_loader import _load_module
 from harzoo.agent.components.util import load_yaml_front_matter_markdown
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
@@ -215,6 +219,9 @@ class SubtaskAgentTool(Tool):
                 rounds += 1
                 delta: list[dict[str, Any]] = []
                 content, tool_calls, usage = child.decide(sub_state)
+                max_ctx = child.llm.llm_config.max_context_tokens
+                if should_auto_compact_after_llm(usage_prompt_tokens(usage), max_ctx):
+                    compact_context_state(sub_state, llm=child.llm, max_context_tokens=max_ctx)
                 delta.append(assistant_message(content=content, tool_calls=tool_calls))
                 assistant_text = _extract_assistant_text(content)
                 if assistant_text and emit_to_tui:
@@ -256,12 +263,6 @@ class SubtaskAgentTool(Tool):
                 if not delta:
                     break
                 sub_state.extend(delta)
-                if usage:
-                    child.llm.llm_config.system_prompt = refresh_context_usage_slot(
-                        child.llm.llm_config.system_prompt,
-                        usage_payload=usage,
-                        max_context_tokens=child.llm.llm_config.max_context_tokens,
-                    )
         except Exception as exc:  # noqa: BLE001
             return ToolResult.failure(
                 f"Subtask execution failed: {type(exc).__name__}: {exc}",

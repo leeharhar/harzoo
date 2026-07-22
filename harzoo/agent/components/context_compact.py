@@ -1,37 +1,23 @@
-"""CompactContext — 会话太长时，由 Agent 自己调用来「腾地方」。
-
-策略（三句话）
---------------
-1. **大段 tool 输出（日志、文件正文、网页）**：删掉正文，只留简短摘要（路径、命令、前几行）。
-2. **最近几轮对话 + 你正在做的任务**：尽量原样保留。
-3. **压缩前用 [PIN]...[/PIN] 写下不能忘的事**（规则、待办、路径）；工具会钉在摘要里。
-
-用法：Self state 里 context 偏高，或刚跑完很大的 Shell/Read 时，Agent 调用
-CompactContext()，无需参数。若返回 compact_again，可再压一次。
-
-说明：Engine 不会自动压缩；压完后旧日志不能复原，需要时再 Read/Grep 查。
-常量与实现细节见本文件下方代码。
-"""
-
+"""会话上下文压缩：LLM 返回后按 API prompt_tokens 自动改写 state。"""
 
 from __future__ import annotations
 
 import copy
 import json
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from harzoo.agent.kernel.llm import LLM
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
-from harzoo.agent.kernel.tool import Context, Tool, ToolResult
+from harzoo.agent.kernel.tool import ToolResult
 
-TOOL_VERSION = "2026-06-26"
+AUTO_COMPACT_THRESHOLD_PCT = 80.0
 
 _SUMMARY_HEADER = "[CONTEXT_SUMMARY]"
 _PIN_BLOCK_RE = re.compile(r"\[PIN\]([\s\S]*?)\[/PIN\]", re.IGNORECASE)
 _GENERATION_RE = re.compile(r"^\[CONTEXT_SUMMARY\]\s*v(\d+)", re.IGNORECASE)
 
-# 策略常量（实现用，一般无需改）
 _KEEP_TURN_COUNT = 2
 _STUB_PREVIEW_CHARS = 200
 _STUB_PREVIEW_LINES = 15
@@ -39,7 +25,127 @@ _ASSISTANT_MAX_CHARS = 800
 _FOLD_TRANSCRIPT_MAX_CHARS = 8_000
 _SUMMARY_MAX_TOKENS = 800
 _LLM_MERGE_USAGE_PCT = 75.0
-_RECOMMEND_AGAIN_THRESHOLD_PCT = 65.0
+
+
+@dataclass(frozen=True, slots=True)
+class CompactOutcome:
+    ok: bool
+    error: str | None = None
+    usage_before_pct: float = 0.0
+    usage_after_pct: float = 0.0
+    before_messages: int = 0
+    after_messages: int = 0
+    stats: dict[str, Any] = field(default_factory=dict)
+
+
+def usage_prompt_tokens(usage_payload: dict[str, Any] | None) -> int | None:
+    if not isinstance(usage_payload, dict):
+        return None
+    try:
+        value = int(usage_payload.get("prompt_tokens"))
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def should_auto_compact_after_llm(
+    prompt_tokens: int | None,
+    max_context_tokens: int | None,
+) -> bool:
+    """本次 LLM 请求的 prompt_tokens 占 max 比例是否达到自动压缩阈值。"""
+
+    if prompt_tokens is None or max_context_tokens is None:
+        return False
+    cap = int(max_context_tokens)
+    if cap <= 0:
+        return False
+    return (prompt_tokens / cap) * 100.0 >= AUTO_COMPACT_THRESHOLD_PCT
+
+
+def estimate_usage_pct(state: list[dict[str, Any]], max_context_tokens: int | None) -> float:
+    cap = max(int(max_context_tokens or 0), 1)
+    chars = sum(len(json.dumps(msg, ensure_ascii=False, default=str)) for msg in state)
+    return min(100.0, (chars / 4) / cap * 100.0)
+
+
+def compact_context_state(
+    state: list[dict[str, Any]],
+    *,
+    llm: LLM,
+    max_context_tokens: int | None,
+) -> CompactOutcome:
+    """原地压缩 state；失败时不修改 state。"""
+
+    usage_before = estimate_usage_pct(state, max_context_tokens)
+    head, tail, protected_count = _partition_state(state)
+    if not head:
+        return CompactOutcome(ok=False, error="Nothing to compact", usage_before_pct=usage_before)
+
+    before_count = len(state)
+    stats: dict[str, Any] = {
+        "stubbed_tools": 0,
+        "deduped_tools": 0,
+        "dropped_chars": 0,
+        "pins_kept": 0,
+        "llm_summarize_used": False,
+    }
+    pins = _collect_pins(state)
+    stats["pins_kept"] = len(pins)
+
+    prior_summary, head_rest = _extract_prior_summary(head)
+    transcript = _messages_to_transcript(head_rest, stub_tools=True, stats=stats)
+
+    protected_count = min(protected_count, len(tail))
+    tail_prefix = tail[:-protected_count] if protected_count > 0 else tail
+    tail_protected = tail[-protected_count:] if protected_count > 0 else []
+    processed_tail = _process_messages_for_tail(tail_prefix, stub_tools=True, stats=stats) + _process_messages_for_tail(
+        tail_protected, stub_tools=False, stats=stats
+    )
+
+    llm_used = _should_llm_merge(transcript=transcript, prior_summary=prior_summary, usage_before_pct=usage_before)
+    if llm_used:
+        try:
+            merged = _llm_merge_summary(prior_summary=prior_summary, pins=pins, transcript=transcript, llm=llm)
+        except Exception as exc:  # noqa: BLE001
+            return CompactOutcome(
+                ok=False,
+                error=f"Summarization failed: {type(exc).__name__}: {exc}",
+                usage_before_pct=usage_before,
+                before_messages=before_count,
+            )
+        if not merged:
+            return CompactOutcome(
+                ok=False,
+                error="Summarizer returned empty text",
+                usage_before_pct=usage_before,
+                before_messages=before_count,
+            )
+        stats["llm_summarize_used"] = True
+        summary_text = merged
+    else:
+        summary_text = _mechanical_summary(prior_summary, pins, transcript)
+
+    compacted = [_build_summary_message(summary_text, _next_summary_generation(state))] + processed_tail
+
+    if not _validate_message_chain(compacted):
+        return CompactOutcome(
+            ok=False,
+            error="Invalid message chain after compact",
+            usage_before_pct=usage_before,
+            before_messages=before_count,
+        )
+
+    state.clear()
+    state.extend(compacted)
+    usage_after = estimate_usage_pct(state, max_context_tokens)
+    return CompactOutcome(
+        ok=True,
+        usage_before_pct=usage_before,
+        usage_after_pct=usage_after,
+        before_messages=before_count,
+        after_messages=len(state),
+        stats=stats,
+    )
 
 
 def _message_text(msg: dict[str, Any]) -> str:
@@ -49,15 +155,6 @@ def _message_text(msg: dict[str, Any]) -> str:
     if isinstance(content, list):
         return " ".join(str(part.get("text", "")) for part in content if part.get("type") == "text")
     return str(content or "")
-
-
-def _estimate_chars(state: list[dict[str, Any]]) -> int:
-    return sum(len(json.dumps(msg, ensure_ascii=False, default=str)) for msg in state)
-
-
-def _estimate_usage_pct(state: list[dict[str, Any]], max_context_tokens: int | None) -> float:
-    cap = max(int(max_context_tokens or 0), 1)
-    return min(100.0, (_estimate_chars(state) / 4) / cap * 100.0)
 
 
 def _find_last_user_index(state: list[dict[str, Any]]) -> int:
@@ -130,7 +227,6 @@ def _partition_state(
 
 
 def _collect_pins(state: list[dict[str, Any]]) -> list[str]:
-    """从 assistant 消息的 [PIN]...[/PIN] 块收集必留信息。"""
     pins: list[str] = []
     seen: set[str] = set()
     for msg in state:
@@ -505,95 +601,3 @@ def _llm_merge_summary(
 
 def _build_summary_message(summary_text: str, generation: int) -> dict[str, Any]:
     return user_message([{"type": "text", "text": f"{_SUMMARY_HEADER} v{generation}\n{summary_text}"}])
-
-
-class CompactContextTool(Tool):
-    """Agent 自主调用的会话压缩工具；策略见文件顶部说明。"""
-
-    name = "CompactContext"
-    description = (
-        "Free context when usage is high or after large Shell/Read output. No arguments. "
-        "Wrap must-keep facts in [PIN]...[/PIN] before calling. "
-        "If recommendation is compact_again, call once more."
-    )
-    parameters: dict[str, Any] = {"type": "object", "properties": {}}
-
-    def execute(self, *, ctx: Context | None = None, **_: Any) -> ToolResult:
-        """执行压缩；策略见文件顶部说明。"""
-        if ctx is None:
-            return ToolResult.failure("CompactContext requires Context", code="INVALID_CONTEXT")
-        if not isinstance(ctx.agent.llm, LLM):
-            return ToolResult.failure("CompactContext requires host LLM", code="INVALID_CONTEXT")
-
-        state = ctx.state
-        llm_config = ctx.agent.llm.llm_config
-        max_context_tokens = llm_config.max_context_tokens if llm_config is not None else None
-        max_int = max(int(max_context_tokens or 0), 1)
-        usage_before = _estimate_usage_pct(state, max_context_tokens)
-
-        head, tail, protected_count = _partition_state(state)
-        if not head:
-            return ToolResult.failure("Nothing to compact", code="INVALID_STATE")
-
-        before_count = len(state)
-        stats: dict[str, Any] = {"stubbed_tools": 0, "deduped_tools": 0, "dropped_chars": 0, "pins_kept": 0, "llm_summarize_used": False}
-        pins = _collect_pins(state)
-        stats["pins_kept"] = len(pins)
-
-        prior_summary, head_rest = _extract_prior_summary(head)
-        transcript = _messages_to_transcript(head_rest, stub_tools=True, stats=stats)
-
-        protected_count = min(protected_count, len(tail))
-        tail_prefix = tail[:-protected_count] if protected_count > 0 else tail
-        tail_protected = tail[-protected_count:] if protected_count > 0 else []
-        processed_tail = _process_messages_for_tail(tail_prefix, stub_tools=True, stats=stats) + _process_messages_for_tail(
-            tail_protected, stub_tools=False, stats=stats
-        )
-
-        llm_used = _should_llm_merge(transcript=transcript, prior_summary=prior_summary, usage_before_pct=usage_before)
-        if llm_used:
-            try:
-                merged = _llm_merge_summary(prior_summary=prior_summary, pins=pins, transcript=transcript, llm=ctx.agent.llm)
-            except Exception as exc:  # noqa: BLE001
-                return ToolResult.failure(
-                    f"Summarization failed: {type(exc).__name__}: {exc}",
-                    code="COMPACT_FAILED",
-                )
-            if not merged:
-                return ToolResult.failure("Summarizer returned empty text", code="COMPACT_FAILED")
-            stats["llm_summarize_used"] = True
-            summary_text = merged
-        else:
-            summary_text = _mechanical_summary(prior_summary, pins, transcript)
-
-        compacted = [_build_summary_message(summary_text, _next_summary_generation(state))] + processed_tail
-
-        if not _validate_message_chain(compacted):
-            return ToolResult.failure("Invalid message chain after compact", code="COMPACT_FAILED")
-
-        state.clear()
-        state.extend(compacted)
-
-        usage_after = _estimate_usage_pct(state, max_context_tokens)
-        recommendation = "compact_again" if usage_after >= _RECOMMEND_AGAIN_THRESHOLD_PCT else "continue"
-
-        if ctx.emitter is not None:
-            ctx.emitter.emit_context_compacted(
-                prompt_tokens=int(round(usage_after / 100.0 * max_int)),
-                max_context_tokens=max_int,
-                before_messages=before_count,
-                after_messages=len(state),
-            )
-
-        return ToolResult.success(
-            {
-                "ok": True,
-                "usage_before_est_pct": round(usage_before, 1),
-                "usage_after_est_pct": round(usage_after, 1),
-                "recommendation": recommendation,
-                "stats": stats,
-            }
-        )
-
-
-TOOL = CompactContextTool

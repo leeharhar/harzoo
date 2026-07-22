@@ -75,7 +75,7 @@ class QueueoutEmitter:
             return
         self._emit(QueueoutEventName.SUBTASK_ENTRY, {"host_call_id": host_id, "line": text})
 
-    def emit_context_compacted(self, *, prompt_tokens: int, max_context_tokens: int, before_messages: int, after_messages: int) -> None:
+    def emit_context_compacted(self, prompt_tokens: int, max_context_tokens: int, before_messages: int, after_messages: int) -> None:
         self._emit(QueueoutEventName.CONTEXT_COMPACTED, {"prompt_tokens": int(prompt_tokens), "max_context_tokens": int(max_context_tokens), "before_messages": int(before_messages), "after_messages": int(after_messages)})
 
     def emit_session_reset(self) -> None:

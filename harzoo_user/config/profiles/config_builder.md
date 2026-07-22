@@ -6,8 +6,8 @@ description: Harzoo 配置构建师，通过读写 harzoo_user/config/ 下的配
 api_key: MAIN_API_KEY
 base_url: MAIN_BASE_URL
 model_name: MAIN_MODEL_NAME
-max_context_tokens: 128000
-tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, Browser, CompactContext, LoadSkill, SaveSkill, SwitchProfile, AskUser
+max_context_tokens: MAIN_MAX_CONTEXT_TOKENS
+tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, Browser, LoadSkill, SaveSkill, SwitchProfile, AskUser
 
 ---
 

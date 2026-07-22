@@ -1,17 +1,15 @@
-"""系统提示词组装：profile 正文、Skills/Subagents 目录、运行环境、Self state 段。
+"""系统提示词组装：profile 正文、Skills/Subagents 目录、运行环境。
 
-自上而下：Skills 目录 → Subagents 目录 → 运行环境 → 上下文用量槽 → assemble_system_prompt。
+自上而下：Skills 目录 → Subagents 目录 → 运行环境 → assemble_system_prompt。
 """
 
 from __future__ import annotations
 
 import os
 import platform
-import re
 from datetime import date
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from harzoo.agent.components.util import load_yaml_front_matter_markdown
 
@@ -169,39 +167,6 @@ def build_runtime_environment_section(*, workspace_root: Path) -> str:
     return f"## Runtime Environment\n\n{facts}"
 
 
-# ---------------------------------------------------------------------------
-# Self state：CONTEXT_USAGE_SLOT 之间的可刷新槽位（每轮由引擎更新）
-# ---------------------------------------------------------------------------
-
-CONTEXT_USAGE_SLOT_START = "<<HARZOO_TOKEN>>"
-CONTEXT_USAGE_SLOT_END = "<</HARZOO_TOKEN>>"
-_CONTEXT_USAGE_SLOT_BLOCK = re.compile(re.escape(CONTEXT_USAGE_SLOT_START) + r"[\s\S]*?" + re.escape(CONTEXT_USAGE_SLOT_END), re.MULTILINE)
-
-def _context_usage_bullet(pct: float) -> str:
-    return f"- Context usage (approx.): {pct:.1f}% of max. See CompactContext tool when you need headroom."
-
-
-def build_self_state_section() -> str:
-    base_section = "## Self state"
-    token_section = "\n".join((CONTEXT_USAGE_SLOT_START, _context_usage_bullet(0.0), CONTEXT_USAGE_SLOT_END))
-
-    parts = [base_section, token_section]
-
-    return "\n".join(parts)
-
-
-def refresh_context_usage_slot(system_prompt: str, *, usage_payload: dict[str, Any] | None, max_context_tokens: int | None) -> str:
-    pt = int((usage_payload or {}).get("prompt_tokens") or 0)
-    cap = int(max_context_tokens or 0)
-    pct = min(100.0, 100.0 * pt / cap) if cap > 0 else 0.0
-    repl = "\n".join((CONTEXT_USAGE_SLOT_START, _context_usage_bullet(pct), CONTEXT_USAGE_SLOT_END))
-    return _CONTEXT_USAGE_SLOT_BLOCK.sub(repl, system_prompt, count=1)
-
-
-# ---------------------------------------------------------------------------
-# 完整系统提示词（assemble_system_prompt）
-# ---------------------------------------------------------------------------
-
 def assemble_system_prompt(
     *,
     base_prompt: str,
@@ -210,12 +175,11 @@ def assemble_system_prompt(
     subagent_paths: list[Path],
     workspace_root: Path,
 ) -> str:
-    # 拼接顺序：正文 → Skills 目录 → Subagents 目录 → 运行环境 → Self state
+    # 拼接顺序：正文 → Skills 目录 → Subagents 目录 → 运行环境
     base_section = base_prompt
     skills_section = build_skills_section(skill_manifests=skill_manifests)
     catalog_section = build_subagents_section(subagent_names=subagent_names, subagent_paths=subagent_paths)
     runtime_environment_section = build_runtime_environment_section(workspace_root=workspace_root)
-    self_state_section = build_self_state_section()
-    parts = [base_section, skills_section, catalog_section, runtime_environment_section, self_state_section]
+    parts = [base_section, skills_section, catalog_section, runtime_environment_section]
     system_prompt = "\n\n".join(part for part in parts if part.strip())
     return system_prompt

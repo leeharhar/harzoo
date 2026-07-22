@@ -6,8 +6,12 @@ from typing import Any
 
 from harzoo.agent.agent import Agent
 from harzoo.agent.components import QueueoutEmitter
+from harzoo.agent.components.context_compact import (
+    compact_context_state,
+    should_auto_compact_after_llm,
+    usage_prompt_tokens,
+)
 from harzoo.agent.components.paths import ConfigPaths
-from harzoo.agent.components.prompt import refresh_context_usage_slot
 from harzoo.agent.control import handle_control
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context
@@ -81,6 +85,17 @@ def engine(
             queue_in.put(assistant_message(content=content, tool_calls=tool_calls))
             emitter.emit_assistant_message(content, usage=usage)
 
+            # ====== 自动压缩上下文 ======
+            prompt_tokens = usage_prompt_tokens(usage)
+            max_ctx = agent.llm.llm_config.max_context_tokens
+            if should_auto_compact_after_llm(prompt_tokens, max_ctx):
+                outcome = compact_context_state(state, llm=agent.llm, max_context_tokens=max_ctx)
+                if outcome.ok and prompt_tokens is not None:
+                    max_int = max(int(max_ctx or 0), 1)
+                    emitter.emit_context_compacted(prompt_tokens=prompt_tokens, max_context_tokens=max_int, before_messages=outcome.before_messages, after_messages=outcome.after_messages)
+                elif outcome.error and outcome.error != "Nothing to compact":
+                    emitter.emit_error(f"Auto compact: {outcome.error}"[:8000])
+
             # ====== 执行工具 ======
             if isinstance(tool_calls, list) and tool_calls:
                 for tool_call in tool_calls:
@@ -100,7 +115,5 @@ def engine(
                     if tool_result.injected_user_input_segments:
                         queue_in.put(user_message(tool_result.injected_user_input_segments))
 
-            if usage:
-                agent.llm.llm_config.system_prompt = refresh_context_usage_slot(agent.llm.llm_config.system_prompt, usage_payload=usage, max_context_tokens=agent.llm.llm_config.max_context_tokens)
         except Exception as exc:  # noqa: BLE001
             emitter.emit_error(f"{type(exc).__name__}: {exc}"[:8000])

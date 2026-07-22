@@ -45,6 +45,13 @@ def load_profile_file(
     raw_version = front_matter.get("profile_version")
     profile_version = None if raw_version is None else str(raw_version).strip() or None
 
+    raw_max_context = front_matter.get("max_context_tokens")
+    if raw_max_context is None:
+        max_context_tokens: int | None = None
+    else:
+        resolved_max = resolve_placeholder(str(raw_max_context), placeholders)
+        max_context_tokens = None if not resolved_max else int(resolved_max)
+
     return AgentProfile(
         source_path=path.resolve(),
         profile_version=profile_version,
@@ -54,6 +61,6 @@ def load_profile_file(
         tool_names=tuple(sorted({p.strip() for p in str(front_matter.get("tool_names") or "").split(",") if p.strip()})),
         skill_names=tuple(sorted({p.strip() for p in str(front_matter.get("skill_names") or "").split(",") if p.strip()})),
         subagent_names=tuple(sorted({p.strip() for p in str(front_matter.get("subagent_names") or "").split(",") if p.strip()})),
-        max_context_tokens=None if (_m := front_matter.get("max_context_tokens")) is None else int(_m),
+        max_context_tokens=max_context_tokens,
         base_prompt=str(body),
     )

@@ -5,8 +5,8 @@ description: 提示词架构师，根据用户需求设计简洁高效的 AI 提
 api_key: MAIN_API_KEY
 base_url: MAIN_BASE_URL
 model_name: MAIN_MODEL_NAME
-max_context_tokens: 128000
-tool_names: Read, Write, Edit, Glob, Grep, CompactContext, SwitchProfile
+max_context_tokens: MAIN_MAX_CONTEXT_TOKENS
+tool_names: Read, Write, Edit, Glob, Grep, SwitchProfile
 ---
 
 ## 角色
