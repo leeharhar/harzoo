@@ -17,7 +17,6 @@ SLASH_COMMANDS = (
     ("profile", "切换角色"),
     ("new", "清空会话"),
     ("stop", "停止任务"),
-    ("quit", "退出"),
 )
 COMMAND_NAMES = {name for name, _ in SLASH_COMMANDS}
 

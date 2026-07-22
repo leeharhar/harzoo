@@ -23,6 +23,9 @@ BANNER = r"""
 ║                        🎮 Harzoo                              ║
 ║──────────────────────────────────────────────────────────────║
 ║        🤖 Beep Boop... Your Wish Is My Command! (◕‿◕)         ║
+║──────────────────────────────────────────────────────────────║
+║           Ctrl+Q Quit  ·  Double-click full text              ║
+║           Ctrl+C Copy  ·  Ctrl+V (Cmd+V) Paste                ║
 ╚══════════════════════════════════════════════════════════════╝
 """.strip("\n")
 
@@ -124,6 +127,7 @@ class AgentApp(App[None]):
         self.controller = AgentController(
             app=self,
             queue_in=queue_in,
+            workspace_root=self._workspace_root,
         )
 
     def compose(self) -> ComposeResult:

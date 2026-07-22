@@ -18,10 +18,6 @@ def _cmd_stop(controller: AgentController, _: list[str]) -> None:
     controller.emit_system("已请求停止，本步完成后不再继续。")
 
 
-def _cmd_quit(controller: AgentController, _: list[str]) -> None:
-    controller.app.exit()
-
-
 def _cmd_new(controller: AgentController, _: list[str]) -> None:
     controller.queue_in.put(control_message("reset"))
 
@@ -36,7 +32,6 @@ def _cmd_profile(controller: AgentController, args: list[str]) -> None:
 
 COMMANDS: dict[str, CommandHandler] = {
     "stop": _cmd_stop,
-    "quit": _cmd_quit,
     "new": _cmd_new,
     "profile": _cmd_profile,
 }

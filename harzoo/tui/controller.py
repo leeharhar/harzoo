@@ -87,6 +87,22 @@ def _compact_int(value: int) -> str:
     return str(value)
 
 
+def _footer_workspace_path(root: Path, *, max_len: int = 36) -> str:
+    resolved = root.expanduser().resolve()
+    try:
+        text = resolved.as_posix()
+        home = Path.home().resolve().as_posix()
+        if text.startswith(home):
+            text = "~" + text[len(home) :]
+    except OSError:
+        text = str(resolved)
+    if len(text) <= max_len:
+        return text
+    head = (max_len - 1) // 2
+    tail = max_len - 1 - head
+    return f"{text[:head]}…{text[-tail:]}"
+
+
 class AgentController:
     """控制 TUI 交互与出站事件渲染。"""
 
@@ -94,9 +110,12 @@ class AgentController:
         self,
         app: App[None],
         queue_in: Queue,
+        *,
+        workspace_root: Path,
     ) -> None:
         self.app = app
         self.queue_in = queue_in
+        self._status_footer_workspace = _footer_workspace_path(workspace_root)
         self._tool_row_by_call_id: dict[str, ToolCallRow] = {}
         self._activity_line_widget: AgentActivityLine | None = None
         self._previous_raw_input = ""
@@ -126,8 +145,12 @@ class AgentController:
         }
 
     def refresh_status_footer_view(self) -> None:
-        """更新底部状态栏（模型 / profile 等）。"""
-        footer_parts = [self._status_model_name, self._status_profile_name]
+        """更新底部状态栏。"""
+        footer_parts = [
+            self._status_footer_workspace,
+            self._status_model_name,
+            self._status_profile_name,
+        ]
         if self._status_usage_ratio_text:
             footer_parts.append(self._status_usage_ratio_text)
         if self._last_turn_tokens > 0:
@@ -135,8 +158,7 @@ class AgentController:
         if self._session_total_tokens > 0:
             footer_parts.append(f"Σ{_compact_int(self._session_total_tokens)}")
         footer_text = " · ".join(footer_parts)
-        footer_widget = self.app.query_one("#status-footer", Static)
-        footer_widget.update(footer_text)
+        self.app.query_one("#status-footer", Static).update(footer_text)
 
     def drain_outbound_events(self, outbound_queue: Queue) -> None:
         """排空出站队列并分派到 UI 处理器。"""
