@@ -12,8 +12,6 @@ from harzoo.agent.kernel.llm import LLM
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import ToolResult
 
-AUTO_COMPACT_THRESHOLD_PCT = 80.0
-
 _SUMMARY_HEADER = "[CONTEXT_SUMMARY]"
 _PIN_BLOCK_RE = re.compile(r"\[PIN\]([\s\S]*?)\[/PIN\]", re.IGNORECASE)
 _GENERATION_RE = re.compile(r"^\[CONTEXT_SUMMARY\]\s*v(\d+)", re.IGNORECASE)
@@ -36,30 +34,6 @@ class CompactOutcome:
     before_messages: int = 0
     after_messages: int = 0
     stats: dict[str, Any] = field(default_factory=dict)
-
-
-def usage_prompt_tokens(usage_payload: dict[str, Any] | None) -> int | None:
-    if not isinstance(usage_payload, dict):
-        return None
-    try:
-        value = int(usage_payload.get("prompt_tokens"))
-    except (TypeError, ValueError):
-        return None
-    return value if value > 0 else None
-
-
-def should_auto_compact_after_llm(
-    prompt_tokens: int | None,
-    max_context_tokens: int | None,
-) -> bool:
-    """本次 LLM 请求的 prompt_tokens 占 max 比例是否达到自动压缩阈值。"""
-
-    if prompt_tokens is None or max_context_tokens is None:
-        return False
-    cap = int(max_context_tokens)
-    if cap <= 0:
-        return False
-    return (prompt_tokens / cap) * 100.0 >= AUTO_COMPACT_THRESHOLD_PCT
 
 
 def estimate_usage_pct(state: list[dict[str, Any]], max_context_tokens: int | None) -> float:

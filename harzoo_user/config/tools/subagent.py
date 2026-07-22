@@ -8,11 +8,7 @@ from typing import Any
 
 from harzoo.agent.agent import Agent
 from harzoo.agent.components.paths import ConfigPaths
-from harzoo.agent.components.context_compact import (
-    compact_context_state,
-    should_auto_compact_after_llm,
-    usage_prompt_tokens,
-)
+from harzoo.agent.components.context_compact import compact_context_state
 from harzoo.agent.components.tool_loader import _load_module
 from harzoo.agent.components.util import load_yaml_front_matter_markdown
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
@@ -219,8 +215,9 @@ class SubtaskAgentTool(Tool):
                 rounds += 1
                 delta: list[dict[str, Any]] = []
                 content, tool_calls, usage = child.decide(sub_state)
+                prompt_tokens = int(usage.get("prompt_tokens") or 0) if isinstance(usage, dict) else 0
                 max_ctx = child.llm.llm_config.max_context_tokens
-                if should_auto_compact_after_llm(usage_prompt_tokens(usage), max_ctx):
+                if prompt_tokens > 0 and max_ctx is not None and int(max_ctx) > 0 and prompt_tokens * 100 >= int(max_ctx) * 80:
                     compact_context_state(sub_state, llm=child.llm, max_context_tokens=max_ctx)
                 delta.append(assistant_message(content=content, tool_calls=tool_calls))
                 assistant_text = _extract_assistant_text(content)

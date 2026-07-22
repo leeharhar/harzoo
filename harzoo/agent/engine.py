@@ -6,11 +6,7 @@ from typing import Any
 
 from harzoo.agent.agent import Agent
 from harzoo.agent.components import QueueoutEmitter
-from harzoo.agent.components.context_compact import (
-    compact_context_state,
-    should_auto_compact_after_llm,
-    usage_prompt_tokens,
-)
+from harzoo.agent.components.context_compact import compact_context_state
 from harzoo.agent.components.paths import ConfigPaths
 from harzoo.agent.control import handle_control
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
@@ -86,11 +82,11 @@ def engine(
             emitter.emit_assistant_message(content, usage=usage)
 
             # ====== 自动压缩上下文 ======
-            prompt_tokens = usage_prompt_tokens(usage)
+            prompt_tokens = int(usage.get("prompt_tokens") or 0) if isinstance(usage, dict) else 0
             max_ctx = agent.llm.llm_config.max_context_tokens
-            if should_auto_compact_after_llm(prompt_tokens, max_ctx):
+            if prompt_tokens > 0 and max_ctx is not None and int(max_ctx) > 0 and prompt_tokens * 100 >= int(max_ctx) * 80:
                 outcome = compact_context_state(state, llm=agent.llm, max_context_tokens=max_ctx)
-                if outcome.ok and prompt_tokens is not None:
+                if outcome.ok:
                     max_int = max(int(max_ctx or 0), 1)
                     emitter.emit_context_compacted(prompt_tokens=prompt_tokens, max_context_tokens=max_int, before_messages=outcome.before_messages, after_messages=outcome.after_messages)
                 elif outcome.error and outcome.error != "Nothing to compact":
