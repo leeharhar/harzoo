@@ -7,9 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from harzoo.agent.agent import Agent
-from harzoo.agent.components.paths import ConfigPaths
+from harzoo.agent.components.paths import ConfigPaths, resolve_profile_path
 from harzoo.agent.components.context_compact import compact_context_state
-from harzoo.agent.components.tool_loader import _load_module
 from harzoo.agent.components.util import load_yaml_front_matter_markdown
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context, Tool, ToolResult
@@ -177,8 +176,7 @@ class SubtaskAgentTool(Tool):
 
         try:
             paths = ctx.config_paths
-            switch_profile = _load_module(paths.tools_root / "switch_profile.py", {})
-            profile_path = switch_profile.resolve_profile_path(agent_name or "", paths)
+            profile_path = resolve_profile_path(agent_name or "", paths)
             child = Agent.from_profile(profile_path, paths)
             display_name = _resolve_display_agent_name(child, agent_name)
         except Exception as exc:  # noqa: BLE001

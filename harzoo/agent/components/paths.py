@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from harzoo.agent.components.util import load_yaml_front_matter_markdown
+
 HARZOO_USER_DIR_NAME = "harzoo_user"
 
 
@@ -89,17 +91,100 @@ def _load_runtime_config(config_file_path: Path) -> tuple[str, dict[str, str]]:
     return startup_profile, placeholder_values
 
 
-def _resolve_startup_profile(profiles_root: Path, startup_profile: str) -> Path:
-    requested = Path(startup_profile.strip())
-    if requested.is_absolute() or any(part in ("..", ".") for part in requested.parts):
-        raise ValueError("config.json 'startup_profile' must be a file name under profiles/")
-    if len(requested.parts) != 1:
-        raise ValueError("config.json 'startup_profile' must not include directory separators")
+def list_profile_markdown_files(profiles_root: Path) -> list[Path]:
+    root = profiles_root.resolve()
+    if not root.is_dir():
+        return []
+    return sorted(p.resolve() for p in root.rglob("*.md") if p.is_file())
 
-    candidate = profiles_root / requested.name
+
+def _resolve_profile_markdown(
+    raw: str,
+    *,
+    profiles_root: Path,
+    default: Path | None,
+) -> Path:
+    text = str(raw).strip()
+    if not text:
+        if default is None:
+            raise FileNotFoundError("Profile name is required")
+        return default.resolve()
+
+    root = profiles_root.resolve()
+    expanded = Path(text).expanduser()
+
+    if expanded.is_absolute():
+        resolved = expanded.resolve()
+        if not resolved.is_file():
+            raise FileNotFoundError(f"Profile not found: {resolved}")
+        if resolved.suffix.lower() != ".md":
+            raise ValueError(f"Profile must be a markdown file: {resolved}")
+        return resolved
+
+    if any(part in ("..", ".") for part in expanded.parts):
+        raise ValueError("Profile path must not contain '.' or '..'")
+
+    candidate = (root / expanded).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Profile path must stay under {root}") from exc
+
     if candidate.suffix.lower() != ".md":
-        candidate = candidate.with_suffix(".md")
-    return candidate.resolve()
+        with_md = candidate.with_suffix(".md")
+        if with_md.is_file():
+            return with_md
+    if candidate.is_file():
+        return candidate
+
+    stem = expanded.stem if expanded.suffix else text
+    direct = root / f"{stem}.md"
+    if direct.is_file():
+        return direct
+
+    catalog = list_profile_markdown_files(root)
+    matches = [p for p in catalog if p.stem == Path(stem).stem]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        refs = ", ".join(p.relative_to(root).as_posix() for p in matches)
+        raise FileNotFoundError(f"Profile {text!r} is ambiguous ({refs})")
+
+    normalized = text.lower()
+    for path in catalog:
+        try:
+            meta, _ = load_yaml_front_matter_markdown(path)
+        except (OSError, ValueError):
+            continue
+        if str(meta.get("name") or "").strip().lower() == normalized:
+            return path
+
+    raise FileNotFoundError(f"Profile {text!r} not found under {root}")
+
+
+def resolve_profile_path(raw: str, paths: ConfigPaths) -> Path:
+    return _resolve_profile_markdown(
+        raw,
+        profiles_root=paths.profiles_root,
+        default=paths.startup_profile_path,
+    )
+
+
+def _resolve_startup_profile(profiles_root: Path, startup_profile: str) -> Path:
+    text = startup_profile.strip() or "xxxx.md"
+    if Path(text).is_absolute():
+        raise ValueError("config.json 'startup_profile' must be relative under profiles/")
+
+    try:
+        return _resolve_profile_markdown(text, profiles_root=profiles_root, default=None)
+    except FileNotFoundError as exc:
+        if "ambiguous" in str(exc):
+            raise ValueError(str(exc)) from exc
+        requested = Path(text)
+        candidate = (profiles_root / requested).resolve()
+        if candidate.suffix.lower() != ".md":
+            candidate = candidate.with_suffix(".md")
+        return candidate
 
 
 def prepare_config_paths(
@@ -140,10 +225,6 @@ def prepare_config_paths(
         startup_profile_path=startup_profile_path,
         placeholder_values=placeholder_values,
     )
-
-
-def list_subagent_paths(paths: ConfigPaths) -> list[Path]:
-    return sorted({p.resolve() for p in paths.profiles_root.glob("*.md") if p.is_file()})
 
 
 def list_skill_manifests(paths: ConfigPaths) -> list[Path]:

@@ -192,11 +192,9 @@ class AgentController:
         self._previous_raw_input = raw_input_value
 
     def open_command_palette(self) -> None:
-        """/：打开命令选择器（唯一命令入口）。"""
+        """打开命令选择器（Ctrl+W）。"""
         self.dismiss_file_picker()
         cmd_picker = self.app.query_one("#command-picker", CommandPicker)
-        current = self._status_profile_name if self._status_profile_name != "—" else ""
-        cmd_picker.set_current_profile(current)
         cmd_picker.open_picker()
 
     def on_at_inserted(self, text_area: TextArea) -> None:
@@ -217,7 +215,6 @@ class AgentController:
         input_widget.clear()
         self._reset_input_tracking()
         dispatch_command(self, command, args)
-        self.anchor_chat()
 
     def _apply_path_placeholder_rewrite(self, event: TextArea.Changed, raw_input_value: str) -> bool:
         """将检测到的图片路径改写为占位符并同步附件。"""
@@ -229,7 +226,7 @@ class AgentController:
         return True
 
     def emit_system(self, text: str) -> None:
-        """挂载灰色系统行。"""
+        """挂载灰色系统行（时间线末尾）。"""
         if not text.strip():
             return
         self._get_chat_container().mount(SystemMessage(text))
@@ -472,7 +469,6 @@ class AgentController:
     ) -> None:
         self._clear_chat_ui()
         self.emit_system("会话已清空。")
-        self.anchor_chat()
 
     def _clear_chat_ui(self) -> None:
         """清空消息滚动区并重置 UI 会话状态（顶栏 banner 保留）。"""

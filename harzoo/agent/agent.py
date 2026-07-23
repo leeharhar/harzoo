@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from harzoo.agent.components.paths import ConfigPaths, list_skill_manifests, list_subagent_paths
+from harzoo.agent.components.paths import ConfigPaths, list_profile_markdown_files, list_skill_manifests
 from harzoo.agent.components.profile import AgentProfile, load_profile_file
 from harzoo.agent.components.prompt import assemble_system_prompt
 from harzoo.agent.components.tool_hub import ToolHub
@@ -61,7 +61,7 @@ class Agent:
             base_prompt=profile.base_prompt,
             skill_manifests=list_skill_manifests(config_paths),
             subagent_names=profile.subagent_names,
-            subagent_paths=list_subagent_paths(config_paths),
+            subagent_paths=list_profile_markdown_files(config_paths.profiles_root),
             workspace_root=config_paths.workspace_root,
         )
         loaded = tools.list_tools()

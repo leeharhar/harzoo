@@ -11,7 +11,7 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from ..logic.profiles import ProfileEntry, list_profile_entries
+from ..logic.profiles import ProfileEntry, format_profile_option_line, list_profile_entries, profile_label_column_width
 
 SLASH_COMMANDS = (
     ("profile", "切换角色"),
@@ -37,18 +37,14 @@ class CommandPicker(Vertical):
             self.args = args
             super().__init__()
 
-    def __init__(self, *, profiles_root: Path, current_profile: str = "", **kwargs) -> None:
+    def __init__(self, *, profiles_root: Path, **kwargs) -> None:
         super().__init__(**kwargs)
         self._profiles_root = profiles_root
-        self._current_profile = current_profile
         self._step = CommandPickerStep.COMMANDS
         self._profiles: list[ProfileEntry] = []
 
     def compose(self) -> ComposeResult:
         yield OptionList(id="command-picker-options", compact=True)
-
-    def set_current_profile(self, profile_name: str) -> None:
-        self._current_profile = profile_name.strip()
 
     def open_picker(self) -> None:
         self._step = CommandPickerStep.COMMANDS
@@ -98,14 +94,13 @@ class CommandPicker(Vertical):
     def _show_profiles(self) -> None:
         self._step = CommandPickerStep.PROFILES
         self._profiles = list_profile_entries(self._profiles_root)
-        current = self._current_profile
         if not self._profiles:
             self._fill_options([Option("（无角色）", id="_empty", disabled=True)])
             return
+        label_width = profile_label_column_width(self._profiles)
         self._fill_options(
             Option(
-                f"{entry.stem}  {entry.description or entry.name or entry.stem}"
-                f"{' (current)' if entry.stem == current else ''}",
+                format_profile_option_line(entry, label_column_width=label_width),
                 id=str(index),
             )
             for index, entry in enumerate(self._profiles)

@@ -9,6 +9,7 @@ from pathlib import Path
 from queue import Queue
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import ScrollableContainer, VerticalGroup
 from textual.widgets import Static, TextArea
 
@@ -20,12 +21,11 @@ from .widgets import BannerMessage, ChatInputTextArea
 
 BANNER = r"""
 ╔══════════════════════════════════════════════════════════════╗
-║                        🎮 Harzoo                              ║
+║                          🤖 Harzoo 🎮                        ║
 ║──────────────────────────────────────────────────────────────║
-║        🤖 Beep Boop... Your Wish Is My Command! (◕‿◕)         ║
-║──────────────────────────────────────────────────────────────║
-║           Ctrl+Q Quit  ·  Double-click full text              ║
-║           Ctrl+C Copy  ·  Ctrl+V (Cmd+V) Paste                ║
+║           Ctrl+W Commands ·  Ctrl+Q Quit                     ║
+║           Ctrl+C Copy     ·  Ctrl+V (Cmd+V) Paste            ║
+║           Double-click Copy full text                        ║
 ╚══════════════════════════════════════════════════════════════╝
 """.strip("\n")
 
@@ -104,7 +104,13 @@ class AgentApp(App[None]):
     """
 
     BINDINGS = [
-        ("escape", "cancel", "Close"),
+        Binding("escape", "cancel", "Close"),
+        Binding(
+            "ctrl+w",
+            "open_command_palette",
+            "Commands",
+            priority=True,
+        ),
     ]
 
     def __init__(
@@ -148,7 +154,7 @@ class AgentApp(App[None]):
                 show_line_numbers=False,
                 tab_behavior="focus",
                 highlight_cursor_line=False,
-                placeholder="Input your idea ...  (@ 文件 · / 命令)",
+                placeholder="Input your idea ...  (@ attach file)",
                 id="chat-input",
             )
             yield Static("", id="status-footer", markup=False)
@@ -170,11 +176,6 @@ class AgentApp(App[None]):
     def on_chat_input_text_area_at_inserted(self, event: ChatInputTextArea.AtInserted) -> None:
         self.controller.on_at_inserted(event.text_area)
 
-    def on_chat_input_text_area_command_palette_requested(
-        self, _: ChatInputTextArea.CommandPaletteRequested
-    ) -> None:
-        self.controller.open_command_palette()
-
     def on_chat_input_text_area_submitted(self, _: ChatInputTextArea.Submitted) -> None:
         self._cancel.clear()
         self.controller.submit_chat_input()
@@ -184,6 +185,14 @@ class AgentApp(App[None]):
 
     def on_file_picker_path_selected(self, event: FilePicker.PathSelected) -> None:
         self.controller.insert_path_into_input(event.relative_path)
+
+    def action_open_command_palette(self) -> None:
+        cmd_picker = self.query_one("#command-picker", CommandPicker)
+        if cmd_picker.is_open:
+            cmd_picker.close_picker()
+            self.query_one("#chat-input", ChatInputTextArea).focus()
+            return
+        self.controller.open_command_palette()
 
     def action_cancel(self) -> None:
         cmd_picker = self.query_one("#command-picker", CommandPicker)

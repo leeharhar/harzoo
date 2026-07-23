@@ -6,13 +6,7 @@ from typing import Any
 
 from harzoo.agent.agent import Agent
 from harzoo.agent.components import QueueoutEmitter
-from harzoo.agent.components.paths import ConfigPaths
-from harzoo.agent.components.tool_loader import _load_module
-
-
-def _resolve_profile_path(raw: str, paths: ConfigPaths):
-    mod = _load_module(paths.tools_root / "switch_profile.py", {})
-    return mod.resolve_profile_path(raw, paths)
+from harzoo.agent.components.paths import ConfigPaths, resolve_profile_path
 
 
 def control_message(action: str, **payload: Any) -> dict[str, Any]:
@@ -39,7 +33,7 @@ def handle_control(
             emitter.emit_error("switch_profile requires a non-empty query")
             return
         try:
-            profile_path = _resolve_profile_path(query, config_paths)
+            profile_path = resolve_profile_path(query, config_paths)
             agent.rebind_profile(profile_path, config_paths=config_paths)
         except Exception as exc:  # noqa: BLE001
             emitter.emit_error(f"{type(exc).__name__}: {exc}"[:8000])

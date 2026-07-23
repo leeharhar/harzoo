@@ -5,7 +5,7 @@
 
 from harzoo.agent.kernel.message import UserInputSegments
 
-from harzoo.agent.components.paths import ConfigPaths, default_user_root, list_skill_manifests, list_subagent_paths, prepare_config_paths
+from harzoo.agent.components.paths import ConfigPaths, default_user_root, list_skill_manifests, prepare_config_paths
 from harzoo.agent.components.tool_hub import ToolHub
 from harzoo.agent.components.queue_out import QueueoutEmitter, QueueoutEventName
 from harzoo.agent.components.profile import AgentProfile, load_profile_file
