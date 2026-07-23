@@ -1,9 +1,10 @@
-"""Browser Tool — CloakBrowser 人类节拍、双模式观测、xhr 采集。
+"""Browser Tool — CloakBrowser 人类节拍、双模式观测、可选 xhr 采集。
 
-分区: 1 常量 | 2 会话(PageCatalog) | 2b iframe(FrameCatalog) | 3 安全 | 4 观测 | 4b 定位 | 5 采集 | 6 人类节奏 | 7 节拍执行 | 8 生命周期 | 9 Tool
+分区: 1 常量 | 2 会话 | 2b iframe | 3 安全 | 4 观测 | 4b 定位 | 4c xhr 采集 | 5 人类节奏 | 6 节拍执行 | 7 生命周期 | 8 Tool
 
-snapshot: aria 树 + ref，交互决策。page_text: 可见文本，内容提取。capture: goto/click 期间 fetch/xhr。
-策略由 agent 决策，工具不做自动 fallback。
+Agent 编排人的动作；导航与反爬节奏内化。page_text 阅读，snapshot+click 交互。
+goto/click 可选 capture=true 采集当次动作触发的 fetch/xhr JSON（如画布 K 线接口）。
+需用户配合的登录/验证码等：见 Tool description，停自动化并通知用户。
 """
 
 from __future__ import annotations
@@ -22,16 +23,16 @@ from harzoo.agent.kernel.tool import Context, Tool, ToolResult
 
 # === 1. 常量 ===
 
-TOOL_VERSION = "2026-07-15-tab-focus"
+TOOL_VERSION = "2026-07-23-access-gate-description"
 DEFAULT_TIMEOUT_MS = 30_000
 _DEFAULT_EXPECT_PAGE_MS = 3_000
-_WAIT_UNTIL_VALUES = frozenset({"domcontentloaded", "load", "networkidle"})
+_NAV_WAIT_UNTIL = "domcontentloaded"
 _SNAPSHOT_SCOPES = frozenset({"body", "dialog", "top_dialog"})
 _DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]'
 _HARD_CAPTURE_MAX_ENTRIES = 100
 _MAX_PAGE_TEXT_CHARS = 50_000
-_MAX_OBSERVE_CHARS = 8_000
-_MAX_WAIT_S = 20.0
+_MAX_WAIT_S = 90.0
+_PAGE_TEXT_SHORT_HINT_CHARS = 120
 _CAPTURE_RESOURCE_TYPES = frozenset({"fetch", "xhr"})
 _SKIP_CAPTURE_URL_FRAGMENTS = (
     "category=web_behavior",
@@ -550,7 +551,7 @@ def _observe(
             return ToolResult.failure(
                 "no dialog on page",
                 code="NOT_FOUND",
-                data={"hint": "use scope=body or wait for modal"},
+                data={"hint": "wait(seconds) then snapshot again"},
             )
         root = dialogs.last if scope == "top_dialog" else dialogs.first
         source = "aria_ai_dialog"
@@ -567,41 +568,11 @@ def _observe(
     )
 
 
-def _parse_snapshot_scope(kw: dict[str, Any]) -> str | ToolResult:
-    raw = kw.get("scope")
-    if raw is None:
-        return "body"
-    scope = str(raw).strip().lower()
-    if scope not in _SNAPSHOT_SCOPES:
-        return ToolResult.failure(
-            f"scope must be one of {sorted(_SNAPSHOT_SCOPES)}",
-            code="INVALID_ARGUMENTS",
-        )
-    return scope
-
-
-def _parse_wait_until(kw: dict[str, Any]) -> str | ToolResult:
-    raw = kw.get("wait_until")
-    if raw is None:
-        return "domcontentloaded"
-    wait_until = str(raw).strip().lower()
-    if wait_until not in _WAIT_UNTIL_VALUES:
-        return ToolResult.failure(
-            f"wait_until must be one of {sorted(_WAIT_UNTIL_VALUES)}",
-            code="INVALID_ARGUMENTS",
-        )
-    return wait_until
-
-
-def _parse_expect_page_ms(kw: dict[str, Any]) -> int | ToolResult:
-    raw = kw.get("expect_page_ms")
-    if raw is None:
-        return _DEFAULT_EXPECT_PAGE_MS
-    try:
-        ms = int(raw)
-    except (TypeError, ValueError):
-        return ToolResult.failure("expect_page_ms must be int", code="INVALID_ARGUMENTS")
-    return max(0, min(30_000, ms))
+def _snapshot_scope(page: Any) -> str:
+    """有 modal 时优先 top_dialog，否则 body。"""
+    if _count_dialogs(page) > 0:
+        return "top_dialog"
+    return "body"
 
 
 def _count_dialogs(page: Any) -> int:
@@ -611,22 +582,13 @@ def _count_dialogs(page: Any) -> int:
         return 0
 
 
-def _observation_fields(page: Any, kw: dict[str, Any]) -> dict[str, Any] | ToolResult:
-    if not kw.get("observe"):
-        return {}
-    scope = kw.get("scope") or "body"
-    if scope not in _SNAPSHOT_SCOPES:
-        scope = "body"
-    obs = _observe(page, cap=_MAX_OBSERVE_CHARS, scope=scope)
-    if isinstance(obs, ToolResult):
-        return obs
-    return {
-        "observation": obs.text,
-        "observation_source": obs.source,
-        "observation_chars": obs.chars,
-        "observation_truncated": obs.truncated,
-        "refs_available": obs.refs_available,
-    }
+def _page_text_short_hint(char_count: int) -> str | None:
+    if char_count >= _PAGE_TEXT_SHORT_HINT_CHARS:
+        return None
+    return (
+        "observation short — if still loading, wait then page_text; "
+        "if login/captcha/verification, stop and tell the user (see Browser tool description)"
+    )
 
 
 def _page_text(page: Any, *, frame_index: int | None = None) -> tuple[str, bool] | ToolResult:
@@ -706,18 +668,15 @@ def _click_hint(page_delta: dict[str, Any], dialogs_visible: int) -> str | None:
         suffix = f" (+{len(opened) - 1} more)" if len(opened) > 1 else ""
         return f"{len(opened)} new tab(s) — list_pages then switch_page(page_index={idx}){suffix}"
     if dialogs_visible:
-        return "dialog visible — snapshot(scope=dialog)"
+        return "dialog visible — snapshot again"
     return None
 
 
-def _click_with_page_watch(page: Any, click_fn: Callable[[], None], *, expect_page_ms: int) -> None:
-    """执行 click；expect_page_ms>0 时在窗口内等待新 tab。"""
-    if expect_page_ms <= 0:
-        click_fn()
-        return
+def _click_with_page_watch(page: Any, click_fn: Callable[[], None]) -> None:
+    """执行 click，并在窗口内等待可能打开的新 tab。"""
     ctx = page.context
     try:
-        with ctx.expect_page(timeout=expect_page_ms):
+        with ctx.expect_page(timeout=_DEFAULT_EXPECT_PAGE_MS):
             click_fn()
     except Exception as e:
         if _is_timeout_error(e):
@@ -725,14 +684,12 @@ def _click_with_page_watch(page: Any, click_fn: Callable[[], None], *, expect_pa
         raise
 
 
-# === 5. 采集 ===
+# === 4c. xhr 采集（goto/click + capture=true）===
 
 
-def _parse_capture(raw: Any, *, default: bool = False) -> tuple[bool, int | None]:
-    """解析 capture：未传则用 default；false=关；true=全量；int=最多保留 N 条。"""
-    if raw is None:
-        return (True, None) if default else (False, None)
-    if raw is False:
+def _parse_capture(raw: Any) -> tuple[bool, int | None]:
+    """false=关；true=全量；int=最多保留 N 条。"""
+    if raw is None or raw is False:
         return False, None
     if raw is True:
         return True, None
@@ -769,12 +726,9 @@ def _network_response_capturable(response: Any) -> bool:
     return True
 
 
-def _read_capture_bodies(
-    pending: list[Any], *, limit: int | None = None
-) -> list[dict[str, Any]]:
+def _read_capture_bodies(pending: list[Any], *, limit: int | None = None) -> list[dict[str, Any]]:
     items = pending if limit is None else pending[-limit:]
     captures: list[dict[str, Any]] = []
-
     for response in items:
         try:
             body = response.body().decode("utf-8", errors="replace")
@@ -797,11 +751,9 @@ def _read_capture_bodies(
 
 @contextmanager
 def _listen_action(page: Any, *, enabled: bool) -> Iterator[list[Any]]:
-    """单次 action 期间监听全部 fetch/xhr；全量保留，不截断。"""
     if not enabled:
         yield []
         return
-
     pending: list[Any] = []
 
     def on_response(response: Any) -> None:
@@ -821,12 +773,11 @@ def _listen_action(page: Any, *, enabled: bool) -> Iterator[list[Any]]:
             pass
 
 
-# === 6. 人类节奏 ===
+# === 5. 人类节奏 ===
 
 
 @dataclass(frozen=True)
 class BeatProfile:
-    capture_default: bool
     pre: str  # nav | aim | micro | none
     post: str  # read | settle | micro | none
     post_range: tuple[float, float]
@@ -847,20 +798,20 @@ class HumanRhythmConfig:
 
 
 BEAT_PROFILES: dict[str, BeatProfile] = {
-    "goto": BeatProfile(False, "nav", "read", (3.0, 6.0), scroll_after=True),
-    "click": BeatProfile(False, "aim", "settle", (3.0, 8.0), scroll_after=True),
-    "back": BeatProfile(False, "nav", "read", (1.5, 4.0), scroll_after=True),
-    "type": BeatProfile(False, "aim", "micro", (0.3, 1.0)),
-    "press": BeatProfile(False, "aim", "micro", (0.5, 1.5)),
-    "scroll": BeatProfile(False, "none", "micro", (0.2, 0.8)),
-    "snapshot": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "page_text": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "wait": BeatProfile(False, "none", "none", (0.0, 0.0)),
-    "list_pages": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "switch_page": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "sync_active": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "close_page": BeatProfile(False, "micro", "none", (0.0, 0.0)),
-    "list_frames": BeatProfile(False, "micro", "none", (0.0, 0.0)),
+    "goto": BeatProfile("nav", "read", (3.0, 6.0), scroll_after=True),
+    "click": BeatProfile("aim", "settle", (3.0, 8.0), scroll_after=True),
+    "back": BeatProfile("nav", "read", (1.5, 4.0), scroll_after=True),
+    "type": BeatProfile("aim", "micro", (0.3, 1.0)),
+    "press": BeatProfile("aim", "micro", (0.5, 1.5)),
+    "scroll": BeatProfile("none", "micro", (0.2, 0.8)),
+    "snapshot": BeatProfile("micro", "none", (0.0, 0.0)),
+    "page_text": BeatProfile("micro", "none", (0.0, 0.0)),
+    "wait": BeatProfile("none", "none", (0.0, 0.0)),
+    "list_pages": BeatProfile("micro", "none", (0.0, 0.0)),
+    "switch_page": BeatProfile("micro", "none", (0.0, 0.0)),
+    "sync_active": BeatProfile("micro", "none", (0.0, 0.0)),
+    "close_page": BeatProfile("micro", "none", (0.0, 0.0)),
+    "list_frames": BeatProfile("micro", "none", (0.0, 0.0)),
 }
 
 _NAV_ACTIONS = frozenset({"goto", "back"})
@@ -951,7 +902,7 @@ class HumanRhythm:
         while q and q[0] < now - self.cfg.rate_window:
             q.popleft()
 
-    def _wait_until(self, q: deque, limit: int, now: float) -> float:
+    def _sleep_for_rate_slot(self, q: deque, limit: int, now: float) -> float:
         slept = 0.0
         while len(q) >= limit:
             wait = q[0] + self.cfg.rate_window - now
@@ -977,9 +928,9 @@ class HumanRhythm:
                 time.sleep(cfg.goto_cooldown - since)
                 slept += cfg.goto_cooldown - since
                 now = time.monotonic()
-            slept += self._wait_until(state["gotos"], cfg.gotos_per_min, now)
+            slept += self._sleep_for_rate_slot(state["gotos"], cfg.gotos_per_min, now)
         if action in _INTERACTION_ACTIONS:
-            slept += self._wait_until(state["acts"], cfg.actions_per_min, now)
+            slept += self._sleep_for_rate_slot(state["acts"], cfg.actions_per_min, now)
         return slept
 
     def _enforce_min_gap(self, action: str) -> float:
@@ -1014,24 +965,20 @@ class HumanRhythm:
 _RHYTHM = HumanRhythm()
 
 
-# === 7. 节拍执行 ===
+# === 6. 节拍执行 ===
 
 
 @dataclass
 class BeatResult:
     pacing: dict[str, float]
     captures: list[dict[str, Any]] | None = None
-    capture_on: bool = False
-    capture_limit: int | None = None
 
     def apply_to(self, result: dict[str, Any]) -> None:
         result["pacing"] = self.pacing
-        if not self.capture_on or self.captures is None:
+        if not self.captures:
             return
         result["captures"] = self.captures
         result["capture_count"] = len(self.captures)
-        if self.capture_limit is not None:
-            result["capture_max_entries"] = self.capture_limit
 
 
 def _human_beat(
@@ -1044,10 +991,11 @@ def _human_beat(
     capture_override: Any = None,
     url: str | None = None,
 ) -> BeatResult:
-    """一次人类节拍：节奏前置 → do → 节奏后置 → 读出本次 captures。"""
-    capture_on, capture_limit = _parse_capture(
-        capture_override, default=profile.capture_default
-    )
+    """一次人类节拍：节奏前置 → do → 节奏后置；可选 xhr 采集。"""
+    try:
+        capture_on, capture_limit = _parse_capture(capture_override)
+    except ValueError as e:
+        raise ValueError(str(e)) from e
 
     pacing: dict[str, float] = {}
     with _listen_action(page, enabled=capture_on) as pending:
@@ -1056,17 +1004,11 @@ def _human_beat(
         pacing.update(_RHYTHM.after(page, profile))
 
     _RHYTHM.mark(action, host)
-
     captures = _read_capture_bodies(pending, limit=capture_limit) if capture_on else None
-    return BeatResult(
-        pacing=pacing,
-        captures=captures,
-        capture_on=capture_on,
-        capture_limit=capture_limit,
-    )
+    return BeatResult(pacing=pacing, captures=captures)
 
 
-# === 8. 生命周期 ===
+# === 7. 生命周期 ===
 
 
 def _close() -> None:
@@ -1075,110 +1017,110 @@ def _close() -> None:
     _RHYTHM.reset()
 
 
-# === 9. Tool ===
+# === 8. Tool ===
+
+
+def _browser_action_variant(action: str, properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "const": action},
+            **properties,
+        },
+        "required": ["action", *required],
+        "additionalProperties": False,
+    }
+
+
+def _browser_tool_parameters() -> dict[str, Any]:
+    ref_prop = {
+        "ref": {
+            "type": "string",
+            "description": "Element ref from snapshot [ref=eN], e.g. e12.",
+        }
+    }
+    frame_prop = {
+        "frame_index": {
+            "type": "integer",
+            "description": "Optional iframe index from list_frames (read-only).",
+        }
+    }
+    page_index_prop = {
+        "page_index": {
+            "type": "integer",
+            "description": "Tab index from list_pages (0-based).",
+        }
+    }
+    capture_prop = {
+        "capture": {
+            "description": (
+                "goto/click only: record fetch/xhr JSON during this action (default false). "
+                "Use true when chart/K-line data lives in API responses (e.g. after clicking 日K/周K). "
+                "Integer = keep at most N recent entries."
+            ),
+            "oneOf": [
+                {"type": "boolean"},
+                {"type": "integer", "minimum": 1, "maximum": _HARD_CAPTURE_MAX_ENTRIES},
+            ],
+        }
+    }
+    return {
+        "oneOf": [
+            _browser_action_variant(
+                "goto",
+                {"url": {"type": "string", "description": "http(s) URL."}, **capture_prop},
+                ["url"],
+            ),
+            _browser_action_variant("back", {}, []),
+            _browser_action_variant("page_text", frame_prop, []),
+            _browser_action_variant("snapshot", frame_prop, []),
+            _browser_action_variant("click", {**ref_prop, **capture_prop}, ["ref"]),
+            _browser_action_variant(
+                "type",
+                {
+                    **ref_prop,
+                    "value": {"type": "string", "description": "Text to type."},
+                },
+                ["ref", "value"],
+            ),
+            _browser_action_variant(
+                "press",
+                {"key": {"type": "string", "description": "Key name, e.g. Enter."}},
+                ["key"],
+            ),
+            _browser_action_variant("scroll", {}, []),
+            _browser_action_variant(
+                "wait",
+                {
+                    "seconds": {
+                        "type": "number",
+                        "description": f"Seconds to wait (max {_MAX_WAIT_S:g}).",
+                    }
+                },
+                ["seconds"],
+            ),
+            _browser_action_variant("list_pages", {}, []),
+            _browser_action_variant("switch_page", page_index_prop, ["page_index"]),
+            _browser_action_variant("sync_active", {}, []),
+            _browser_action_variant("close_page", page_index_prop, ["page_index"]),
+            _browser_action_variant("list_frames", {}, []),
+            _browser_action_variant("close", {}, []),
+        ]
+    }
 
 
 class BrowserTool(Tool):
     name = "Browser"
     description = (
-        "Stealth Chromium for human-paced browsing. One call = one physical action. "
-        "Data channels (agent chooses): "
-        "capture (goto/click, default off; pass capture=true when needed) = fetch/xhr JSON during this action only; "
-        "page_text = visible body text for content extraction; "
-        "snapshot = accessibility tree with [ref=eN] — required before click/type; scope=dialog for modals. "
-        "click and type target elements by ref only (from snapshot). "
-        "For click/type also pass ref_caption: copy the snapshot aria line for that ref "
-        "without [ref=eN] or tree indent (e.g. button \"登录\"). Display-only; ref still required. "
-        "Multi-tab (single-tab operate model): list_pages shows agent + focused tabs; "
-        "all snapshot/click/type run on agent tab only. "
-        "After manual tab switch: list_pages — if focused≠agent, sync_active or switch_page. "
-        "click returns page_delta.opened when new tabs open in background. "
-        "Flow: snapshot → click(ref=eN, ref_caption=...) or type(ref=eN, value=..., ref_caption=...); "
-        "on REF_STALE, snapshot again. "
-        "If click opens tab: check page_delta.opened → switch_page → snapshot. "
-        "If modal: check dialogs_visible → snapshot(scope=dialog). "
-        "Iframes (read-only): list_frames → page_text(frame_index=N); "
-        "snapshot(frame_index=N) for structure (refs not usable with click/type). "
-        "After manual user ops in CloakBrowser: list_pages → sync_active or switch_page → snapshot. "
-        "Suggested flow: goto(capture=true) → if captures suffice, extract and stop; "
-        "else page_text; before click/type use snapshot. "
-        "observe=true on goto/click attaches compact post-action snapshot. "
-        "Do NOT use snapshot to read articles; do NOT use page_text to find controls. "
-        "Anti-bot pacing is automatic — do not stack manual wait for stealth."
+        "Human-paced visible Chromium: one action per call. Read with page_text; interact via snapshot → click/type by ref. "
+        "K-line/chart JSON: click(ref, capture=true) or goto(url, capture=true). After goto, use page_text; "
+        "if content looks still loading, wait then page_text again. "
+        "If the page requires the user (login, OTP/SMS, captcha, or human verification): stop all browser automation—"
+        "no retries, no typing secrets, no bypass clicks. Tell the user to finish in the open browser window, "
+        "then sync_active and page_text to confirm before continuing. In a subtask, stop collecting and state clearly "
+        "what the user must do; do not fabricate data. Follow hints in tool results. Pacing is automatic."
     )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "action": {"type": "string", "enum": list(_ACTIONS)},
-            "url": {"type": "string", "description": "URL for goto (http/https)."},
-            "ref": {
-                "type": "string",
-                "description": (
-                    "Required for click/type. Element ref from snapshot [ref=eN], e.g. e12. "
-                    "Stale after DOM change — snapshot again."
-                ),
-            },
-            "ref_caption": {
-                "type": "string",
-                "description": (
-                    "click/type: caption for the same ref — copy the snapshot aria line without "
-                    "[ref=eN] or leading indent, e.g. button \"登录\". "
-                    "Optional; does not affect which element is clicked (ref only)."
-                ),
-            },
-            "value": {
-                "type": "string",
-                "description": "Required for type: text content to enter into the field at ref.",
-            },
-            "observe": {
-                "type": "boolean",
-                "description": "goto/click only: attach compact post-action aria snapshot.",
-            },
-            "scope": {
-                "type": "string",
-                "enum": ["body", "dialog", "top_dialog"],
-                "description": "snapshot/observe root: body (default), dialog, or top_dialog (topmost modal).",
-            },
-            "page_index": {
-                "type": "integer",
-                "description": "Tab index from list_pages (0-based). Required for switch_page and close_page.",
-            },
-            "frame_index": {
-                "type": "integer",
-                "description": (
-                    "Frame index from list_frames (0-based). "
-                    "Read-only on page_text/snapshot; omit for main frame. "
-                    "Not allowed on click/type."
-                ),
-            },
-            "wait_until": {
-                "type": "string",
-                "enum": ["domcontentloaded", "load", "networkidle"],
-                "description": "goto/back navigation wait (default domcontentloaded; SPAs may need networkidle).",
-            },
-            "expect_page_ms": {
-                "type": "integer",
-                "description": (
-                    "click only: ms to wait for new tab after click (default 3000; 0=disable)."
-                ),
-            },
-            "key": {"type": "string", "description": "Key for press, e.g. Enter."},
-            "delta_y": {"type": "integer", "description": "Scroll pixels (positive=down)."},
-            "seconds": {"type": "number", "description": "Seconds to wait (max 20)."},
-            "timeout_ms": {"type": "integer", "description": "Per-action timeout in ms (default 30000)."},
-            "capture": {
-                "description": (
-                    "goto/click only: capture fetch/xhr during this action (default off; true to enable). "
-                    "Integer = keep at most N most recent entries (1–100). Default keeps all."
-                ),
-                "oneOf": [
-                    {"type": "boolean"},
-                    {"type": "integer", "minimum": 1, "maximum": _HARD_CAPTURE_MAX_ENTRIES},
-                ],
-            },
-        },
-        "required": ["action"],
-    }
+    parameters = _browser_tool_parameters()
 
     _ACT_HANDLERS: dict[str, str] = {
         "goto": "_act_goto",
@@ -1206,11 +1148,6 @@ class BrowserTool(Tool):
             return ToolResult.failure(f"unknown action: {action}", code="INVALID_ARGUMENTS")
 
         timeout = DEFAULT_TIMEOUT_MS
-        if kw.get("timeout_ms") is not None:
-            try:
-                timeout = max(1000, min(120_000, int(kw["timeout_ms"])))
-            except (TypeError, ValueError):
-                return ToolResult.failure("timeout_ms must be int", code="INVALID_ARGUMENTS")
 
         if action == "close":
             _close()
@@ -1242,62 +1179,46 @@ class BrowserTool(Tool):
         do: Callable[[], None],
         *,
         host: str | None = None,
-        capture_override: Any = None,
         url: str | None = None,
+        capture_override: Any = None,
         include_title: bool = False,
         **fields: Any,
     ) -> ToolResult:
-        beat = _human_beat(
-            page,
-            action=action,
-            host=host or _RHYTHM.page_host(page),
-            profile=BEAT_PROFILES[action],
-            capture_override=capture_override,
-            url=url,
-            do=do,
-        )
+        try:
+            beat = _human_beat(
+                page,
+                action=action,
+                host=host or _RHYTHM.page_host(page),
+                profile=BEAT_PROFILES[action],
+                url=url,
+                capture_override=capture_override,
+                do=do,
+            )
+        except ValueError as e:
+            return ToolResult.failure(str(e), code="INVALID_ARGUMENTS")
         result: dict[str, Any] = {"url": page.url, **PageCatalog.context_fields(page), **fields}
         if include_title:
             result["title"] = _safe_title(page)
         beat.apply_to(result)
         return ToolResult.success(result)
 
-    def _with_observe(self, page: Any, kw: dict[str, Any], result: ToolResult) -> ToolResult:
-        if not (result.ok and kw.get("observe")):
-            return result
-        fields = _observation_fields(page, kw)
-        if isinstance(fields, ToolResult):
-            return fields
-        if isinstance(result.data, dict):
-            result.data.update(fields)
-        return result
-
     def _act_goto(self, page: Any, kw: dict[str, Any]) -> ToolResult:
         url = str(kw.get("url") or "").strip()
         if not url.startswith(("http://", "https://")):
             return ToolResult.failure("goto needs http(s) url", code="INVALID_ARGUMENTS")
-        wait_until = _parse_wait_until(kw)
-        if isinstance(wait_until, ToolResult):
-            return wait_until
         _validate_url(url)
-        return self._with_observe(
+        return self._run_beat(
             page,
-            kw,
-            self._run_beat(
-                page,
-                "goto",
-                lambda: page.goto(url, wait_until=wait_until),
-                host=_RHYTHM.host(url),
-                url=url,
-                capture_override=kw.get("capture"),
-                include_title=True,
-            ),
+            "goto",
+            lambda: page.goto(url, wait_until=_NAV_WAIT_UNTIL),
+            host=_RHYTHM.host(url),
+            url=url,
+            capture_override=kw.get("capture"),
+            include_title=True,
         )
 
     def _act_snapshot(self, page: Any, kw: dict[str, Any]) -> ToolResult:
-        scope = _parse_snapshot_scope(kw)
-        if isinstance(scope, ToolResult):
-            return scope
+        scope = _snapshot_scope(page)
         frame_index = FrameCatalog.parse_index(kw)
         if isinstance(frame_index, ToolResult):
             return frame_index
@@ -1380,6 +1301,8 @@ class BrowserTool(Tool):
         }
         if frame_index is not None:
             fields["frame_index"] = frame_index
+        if hint := _page_text_short_hint(len(observation)):
+            fields["hint"] = hint
         return self._run_beat_result(page, beat, **fields)
 
     def _act_click(self, page: Any, kw: dict[str, Any]) -> ToolResult:
@@ -1388,26 +1311,18 @@ class BrowserTool(Tool):
         target = _resolve_ref(page, kw, role="click")
         if isinstance(target, ToolResult):
             return target
-        expect_page_ms = _parse_expect_page_ms(kw)
-        if isinstance(expect_page_ms, ToolResult):
-            return expect_page_ms
         url_before = page.url
         pages_before = _page_ids(PageCatalog.all())
         try:
-            result = self._with_observe(
+            result = self._run_beat(
                 page,
-                kw,
-                self._run_beat(
+                "click",
+                lambda: _click_with_page_watch(
                     page,
-                    "click",
-                    lambda: _click_with_page_watch(
-                        page,
-                        lambda: target.locator.click(),
-                        expect_page_ms=expect_page_ms,
-                    ),
-                    capture_override=kw.get("capture"),
-                    clicked=target.label,
+                    lambda: target.locator.click(),
                 ),
+                capture_override=kw.get("capture"),
+                clicked=target.label,
             )
         except Exception as e:
             return _ref_failure("click", e)
@@ -1464,7 +1379,7 @@ class BrowserTool(Tool):
         )
 
     def _act_scroll(self, page: Any, kw: dict[str, Any]) -> ToolResult:
-        dy = int(kw.get("delta_y") or 300)
+        dy = 300
         return self._run_beat(
             page,
             "scroll",
@@ -1473,13 +1388,10 @@ class BrowserTool(Tool):
         )
 
     def _act_back(self, page: Any, kw: dict[str, Any]) -> ToolResult:
-        wait_until = _parse_wait_until(kw)
-        if isinstance(wait_until, ToolResult):
-            return wait_until
         return self._run_beat(
             page,
             "back",
-            lambda: page.go_back(wait_until=wait_until),
+            lambda: page.go_back(wait_until=_NAV_WAIT_UNTIL),
             include_title=True,
         )
 
@@ -1514,8 +1426,7 @@ class BrowserTool(Tool):
         return ToolResult.success(result)
 
     def _act_sync_active(self, page: Any, kw: dict[str, Any]) -> ToolResult:
-        timeout_ms = int(kw.get("timeout_ms") or DEFAULT_TIMEOUT_MS)
-        return PageCatalog.sync_focused(timeout_ms)
+        return PageCatalog.sync_focused(DEFAULT_TIMEOUT_MS)
 
     def _act_switch_page(self, page: Any, kw: dict[str, Any]) -> ToolResult:
         if kw.get("page_index") is None:
@@ -1535,8 +1446,7 @@ class BrowserTool(Tool):
         target = PageCatalog.resolve(index)
         if isinstance(target, ToolResult):
             return target
-        timeout_ms = int(kw.get("timeout_ms") or DEFAULT_TIMEOUT_MS)
-        PageCatalog.activate(target, timeout_ms)
+        PageCatalog.activate(target, DEFAULT_TIMEOUT_MS)
         result: dict[str, Any] = {
             "switched_to": index,
             "url": target.url,

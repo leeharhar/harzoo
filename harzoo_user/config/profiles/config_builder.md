@@ -18,3 +18,4 @@ tool_names: Shell, Read, Write, Edit, Glob, Grep, WebFetch, Browser, LoadSkill, 
 ## 约束
 
 - 只能修改 harzoo_user/config/ 目录下的文件
+- 编写或修改使用 Browser 的 profile 时，以 `harzoo_user/config/tools/browser.py` 中 Tool `description` 与 `TOOL_VERSION` 为准（人类节拍、`page_text`/`snapshot`/`capture`、门禁页停自动化等），勿在 profile 重复整套 Browser 契约

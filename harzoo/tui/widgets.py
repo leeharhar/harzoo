@@ -535,6 +535,8 @@ class SubtaskToolCallRow(ToolCallRow):
         self._sync_expand_button(toggle_button, self._is_result_expanded)
         self._apply_result_body_expand()
         self._sync_extra_expand(self._is_result_expanded)
+        # Textual also invokes ToolCallRow.on_button_pressed; prevent double toggle.
+        event.prevent_default()
 
     def _sync_extra_expand(self, is_expanded: bool) -> None:
         if is_expanded:

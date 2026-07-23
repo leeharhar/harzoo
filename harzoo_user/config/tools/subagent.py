@@ -14,7 +14,10 @@ from harzoo.agent.components.util import load_yaml_front_matter_markdown
 from harzoo.agent.kernel.message import assistant_message, tool_message, user_message
 from harzoo.agent.kernel.tool import Context, Tool, ToolResult
 
-TOOL_VERSION = "2026-07-13"
+TOOL_VERSION = "2026-07-22"
+
+# Host LLM must not tune subtask depth; fixed cap avoids premature max_turns_reached on Browser flows.
+_DEFAULT_SUBTASK_MAX_TURNS = 110
 
 _SUMMARY_MAX_LEN = 144
 _LIVE_DETAIL_MAX_LEN = 80
@@ -146,13 +149,6 @@ class SubtaskAgentTool(Tool):
                 "type": "string",
                 "description": "Subtask profile name/path. Defaults to the active default profile.",
             },
-            "max_turns": {
-                "type": "integer",
-                "description": "Maximum delegated loop turns before returning.",
-                "minimum": 1,
-                "maximum": 20,
-                "default": 6,
-            },
             "show_progress": {
                 "type": "boolean",
                 "description": "When true, stream sub-agent assistant replies and tool calls to the TUI.",
@@ -166,7 +162,6 @@ class SubtaskAgentTool(Tool):
         self,
         task_description: str,
         agent_name: str | None = None,
-        max_turns: int = 6,
         show_progress: bool = True,
         *,
         ctx: Context | None = None,
@@ -178,10 +173,7 @@ class SubtaskAgentTool(Tool):
         if ctx is None:
             return ToolResult.failure("SubtaskAgent requires host Context", code="INVALID_CONTEXT")
 
-        try:
-            capped_turns = max(1, min(20, int(max_turns)))
-        except (TypeError, ValueError):
-            return ToolResult.failure("max_turns must be an integer between 1 and 20", code="INVALID_ARGUMENTS")
+        capped_turns = _DEFAULT_SUBTASK_MAX_TURNS
 
         try:
             paths = ctx.config_paths
