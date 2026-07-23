@@ -30,7 +30,7 @@ www.harzoo.com
 
 2. **Configure**
 
-   In `harzoo_user/config/config.json`, set `MAIN_API_KEY`, `MAIN_BASE_URL`, and `MAIN_MODEL_NAME` to your own model API.
+   Edit `harzoo_user/config/config.json`, set `MAIN_API_KEY`, `MAIN_BASE_URL`, and `MAIN_MODEL_NAME` to your own model API.
 
 3. **Run**
 
