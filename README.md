@@ -30,10 +30,7 @@ www.harzoo.com
 
 2. **Configure**
 
-   Under `harzoo_user/`:
-
-   - Edit `harzoo_user/config/config.json`: set `startup_profile` and `placeholder_values` (API keys, base URL, model names).
-   - Profiles live in `harzoo_user/config/profiles/`; use placeholder names like `MAIN_API_KEY` in YAML front matter.
+   In `harzoo_user/config/config.json`, set `MAIN_API_KEY`, `MAIN_BASE_URL`, and `MAIN_MODEL_NAME` to your own model API.
 
 3. **Run**
 
