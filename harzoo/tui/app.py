@@ -23,9 +23,9 @@ BANNER = r"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                          🤖 Harzoo 🎮                        ║
 ║──────────────────────────────────────────────────────────────║
-║           Ctrl+W Commands ·  Ctrl+Q Quit                     ║
-║           Ctrl+C Copy     ·  Ctrl+V (Cmd+V) Paste            ║
-║           Double-click Copy full text                        ║
+║       Ctrl+W Commands                Ctrl+Q Quit             ║
+║       Ctrl+C Copy                    Ctrl+V (Cmd+V) Paste    ║
+║       Double-click Full Copy                                 ║
 ╚══════════════════════════════════════════════════════════════╝
 """.strip("\n")
 
